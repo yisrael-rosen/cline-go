@@ -7,7 +7,7 @@ export async function selectImages(): Promise<string[]> {
 		canSelectMany: true,
 		openLabel: "Select",
 		filters: {
-			Images: ["png", "jpg", "jpeg", "webp"], // supported by anthropic and openrouter
+			Images: ["png", "jpg", "jpeg", "webp"], // supported by Claude
 		},
 	}
 

@@ -9,7 +9,7 @@ import CodeAccordian, { removeLeadingNonAlphanumeric } from "../common/CodeAccor
 import CodeBlock, { CODE_BLOCK_BG_COLOR } from "../common/CodeBlock"
 import MarkdownBlock from "../common/MarkdownBlock"
 import Thumbnails from "../common/Thumbnails"
-import { highlightMentions } from "./TaskHeader"
+import { highlightMentions } from "../../utils/format"
 
 interface ChatRowProps {
 	message: ClineMessage

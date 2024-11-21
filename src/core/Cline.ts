@@ -780,7 +780,11 @@ export class Cline {
 		try {
 			// awaiting first chunk to see if it will throw an error
 			const firstChunk = await iterator.next()
-			yield firstChunk.value
+			if (!firstChunk.done && firstChunk.value) {
+    			yield firstChunk.value
+			} else {
+    			throw new Error("No value in first chunk")
+			}
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
 			const { response } = await this.ask(
@@ -1875,8 +1879,8 @@ export class Cline {
 				for await (const chunk of stream) {
 					switch (chunk.type) {
 						case "usage":
-							inputTokens += chunk.inputTokens
-							outputTokens += chunk.outputTokens
+							inputTokens += chunk.inputTokens ?? 0
+							outputTokens += chunk.outputTokens ?? 0
 							cacheWriteTokens += chunk.cacheWriteTokens ?? 0
 							cacheReadTokens += chunk.cacheReadTokens ?? 0
 							totalCost = chunk.totalCost
