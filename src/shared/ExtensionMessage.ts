@@ -77,11 +77,14 @@ export interface ClineSayTool {
 		| "listFilesRecursive"
 		| "listCodeDefinitionNames"
 		| "searchFiles"
+		| "findReferences"  // Added new tool type
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+	symbol?: string      // Added for findReferences
+	references?: string  // Added for findReferences
 }
 
 // must keep in sync with system prompt

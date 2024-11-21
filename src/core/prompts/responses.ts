@@ -92,6 +92,13 @@ Otherwise, if you have not completed the task and do not need additional informa
 		const prettyPatchLines = lines.slice(4)
 		return prettyPatchLines.join("\n")
 	},
+
+	formatReferences: (symbol: string, references: string[]) => {
+		if (references.length === 0) {
+			return `No references found for symbol '${symbol}'`
+		}
+		return `Found ${references.length} references for '${symbol}':\n\n${references.join('\n')}`
+	},
 }
 
 // to avoid circular dependency

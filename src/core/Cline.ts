@@ -880,6 +880,8 @@ export class Cline {
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
+						case "find_references":
+    						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
@@ -1360,6 +1362,81 @@ export class Cline {
 							}
 						} catch (error) {
 							await handleError("searching files", error)
+							break
+						}
+					}
+					case "find_references": {
+						const symbol: string | undefined = block.params.symbol
+						const relPath: string | undefined = block.params.path
+						const sharedMessageProps: ClineSayTool = {
+							tool: "findReferences",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+							symbol: removeClosingTag("symbol", symbol)
+						}
+					
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify(sharedMessageProps)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!symbol) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("find_references", "symbol"))
+									break
+								}
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("find_references", "path"))
+									break
+								}
+					
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relPath)
+					
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: `Finding references for symbol '${symbol}' in ${relPath}`
+								})
+					
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+					
+								// Get the document and position
+								const document = await vscode.workspace.openTextDocument(absolutePath)
+								const text = document.getText()
+								const position = new vscode.Position(0, 0)
+					
+								// Find all references
+								const locations = await vscode.commands.executeCommand<vscode.Location[]>(
+									'vscode.executeReferenceProvider',
+									document.uri,
+									position
+								) || []
+					
+								// Format results
+								const references = locations.map(location => {
+									const relativePath = path.relative(cwd, location.uri.fsPath).toPosix()
+									const line = location.range.start.line + 1
+									const character = location.range.start.character + 1
+									return `${relativePath}:${line}:${character}`
+								}).join('\n')
+					
+								pushToolResult(`Found ${locations.length} references for '${symbol}':\n\n${references}`)
+								break
+							}
+						} catch (error) {
+							await handleError("finding references", error)
 							break
 						}
 					}

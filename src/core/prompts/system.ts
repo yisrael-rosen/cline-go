@@ -99,6 +99,17 @@ Usage:
 	supportsComputerUse
 		? `
 
+## find_references
+Description: Request to find all references and implementations of a specified symbol (function, variable, class, etc.) in the workspace. Uses VSCode's built-in language services to provide accurate results across all supported languages.
+Parameters:
+- symbol: (required) The name of the symbol to find references for
+- path: (required) The path of the file containing the symbol definition (relative to the current working directory ${cwd.toPosix()})
+Usage:
+<find_references>
+<symbol>handleWebviewAskResponse</symbol>
+<path>src/core/Cline.ts</path>
+</find_references>
+
 ## browser_action
 Description: Request to interact with a Puppeteer-controlled browser. Every action, except \`close\`, will be responded to with a screenshot of the browser's current state, along with any new console logs. You may only perform one browser action per message, and wait for the user's response including a screenshot and logs to determine the next action.
 - The sequence of actions **must always start with** launching the browser at a URL, and **must always end with** closing the browser. If you need to visit a new URL that is not possible to navigate to from the current webpage, you must first close the browser, then launch again at the new URL.
