@@ -1,4 +1,4 @@
-import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { memo } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
@@ -21,16 +21,12 @@ const TaskHeader = ({
     tokensIn,
     tokensOut,
     doesModelSupportPromptCache,
-    cacheWrites,
-    cacheReads,
+    cacheWrites = 0,
+    cacheReads = 0,
     totalCost,
     onClose,
 }: TaskHeaderProps) => {
 	const { apiConfiguration } = useExtensionState()
-
-	const shouldShowPromptCacheInfo = apiConfiguration?.apiModelId
-		? apiConfiguration.apiModelId in anthropicModels && anthropicModels[apiConfiguration.apiModelId as keyof typeof anthropicModels].supportsPromptCache
-		: false
 
 	return (
 		<div
@@ -41,36 +37,47 @@ const TaskHeader = ({
 				padding: "10px 20px",
 				borderBottom: "1px solid var(--vscode-sideBarSectionHeader-border)",
 			}}>
-			<div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-				<VSCodeButton
-					appearance="icon"
-					onClick={onClose}
-					style={{ padding: 5 }}>
-					<span className="codicon codicon-close"></span>
-				</VSCodeButton>
-				<VSCodeButton
-					appearance="icon"
-					onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}
-					style={{ padding: 5 }}>
-					<span className="codicon codicon-export"></span>
-				</VSCodeButton>
+			<div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "space-between" }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={onClose}
+						style={{ padding: 5 }}>
+						<span className="codicon codicon-close"></span>
+					</VSCodeButton>
+					<VSCodeButton
+						appearance="icon"
+						onClick={() => vscode.postMessage({ type: "exportCurrentTask" })}
+						style={{ padding: 5 }}>
+						<span className="codicon codicon-export"></span>
+					</VSCodeButton>
+				</div>
+				<div style={{ 
+					display: "flex", 
+					gap: 15, 
+					fontSize: "12px",
+					color: "var(--vscode-descriptionForeground)"
+				}}>
+					<div>
+						<span style={{ fontWeight: 500 }}>Input Tokens:</span> {tokensIn.toLocaleString()}
+					</div>
+					<div>
+						<span style={{ fontWeight: 500 }}>Output Tokens:</span> {tokensOut.toLocaleString()}
+					</div>
+					<div>
+						<span style={{ fontWeight: 500 }}>Total Tokens:</span> {(tokensIn + tokensOut).toLocaleString()}
+					</div>
+					<div>
+						<span style={{ fontWeight: 500 }}>Cache Reads:</span> {cacheReads.toLocaleString()}
+					</div>
+					<div>
+						<span style={{ fontWeight: 500 }}>Cache Writes:</span> {cacheWrites.toLocaleString()}
+					</div>
+					<div>
+						<span style={{ fontWeight: 500 }}>Cost:</span> ${totalCost.toFixed(4)}
+					</div>
+				</div>
 			</div>
-			{shouldShowPromptCacheInfo && (
-				<p
-					style={{
-						fontSize: "12px",
-						margin: 0,
-						color: "var(--vscode-descriptionForeground)",
-					}}>
-					<span style={{ fontWeight: 500 }}>Note:</span> Prompt caching is enabled for this model. Cline will
-					try to reuse previous responses to save on API costs.{" "}
-					<VSCodeLink
-						href="https://github.com/cline/cline#prompt-caching"
-						style={{ display: "inline", fontSize: "inherit" }}>
-						Learn more
-					</VSCodeLink>
-				</p>
-			)}
 		</div>
 	)
 }
