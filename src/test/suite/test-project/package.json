@@ -9,5 +9,11 @@
   },
   "devDependencies": {
     "typescript": "^4.9.5"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^22.9.3"
   }
 }
