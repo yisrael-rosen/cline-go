@@ -17,87 +17,57 @@ export async function findReferences(filePath: string, symbol: string): Promise<
 
     // Get the document
     const document = await vscode.workspace.openTextDocument(filePath);
+    
+    // Find all symbol positions in the document
     const text = document.getText();
+    const positions: vscode.Position[] = [];
+    
+    let currentIndex = 0;
+    while (true) {
+        const index = text.indexOf(symbol, currentIndex);
+        if (index === -1) break;
+        
+        // Convert offset to position
+        const position = document.positionAt(index);
+        
+        // Verify this is a complete symbol by checking word boundaries
+        const range = document.getWordRangeAtPosition(position);
+        if (range && document.getText(range) === symbol) {
+            positions.push(position);
+        }
+        
+        currentIndex = index + 1;
+    }
 
-    // Find the symbol in the document
-    const symbolIndex = text.indexOf(symbol);
-    if (symbolIndex === -1) {
+    if (positions.length === 0) {
         return [];
     }
 
-    // Convert offset to position
-    const position = document.positionAt(symbolIndex);
-
     try {
-        // First find the symbol's definition
-        const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
-            'vscode.executeDefinitionProvider',
-            document.uri,
-            position
-        ) || [];
+        // Try each position until we find one that returns references
+        for (const position of positions) {
+            const references = await vscode.commands.executeCommand<vscode.Location[]>(
+                'vscode.executeReferenceProvider',
+                document.uri,
+                position
+            ) || [];
 
-        // Use the definition's location if found, otherwise use the original position
-        const searchPosition = definitions.length > 0 
-            ? definitions[0].range.start 
-            : position;
-
-        const searchUri = definitions.length > 0
-            ? definitions[0].uri
-            : document.uri;
-
-        // Find all references using the definition's location
-        const references = await vscode.commands.executeCommand<vscode.Location[]>(
-            'vscode.executeReferenceProvider',
-            searchUri,
-            searchPosition
-        ) || [];
-
-        // Sort references by file and position
-        const sortedLocations = references.sort((a, b) => {
-            // First sort by file path
-            const pathCompare = a.uri.toString().localeCompare(b.uri.toString());
-            if (pathCompare !== 0) {
-                return pathCompare;
+            if (references.length > 0) {
+                return references.map(location => {
+                    const relativePath = path.relative(filePath, location.uri.fsPath).replace(/\\/g, '/');
+                    const line = location.range.start.line + 1;
+                    const character = location.range.start.character + 1;
+                    return `${relativePath}:${line}:${character}`;
+                });
             }
-            // Then by line number
-            if (a.range.start.line !== b.range.start.line) {
-                return a.range.start.line - b.range.start.line;
-            }
-            // Finally by character position
-            return a.range.start.character - b.range.start.character;
-        });
+        }
 
-        return formatLocations(sortedLocations, filePath);
+        // If we get here, no position returned references
+        return [];
     } catch (error) {
         if (error instanceof Error) {
             throw error;
         }
         throw new Error('Failed to find references: ' + String(error));
     }
-}
-
-/**
- * Format Location objects into strings
- * @param locations Array of VSCode Location objects
- * @param baseFilePath Base file path to make paths relative to
- * @returns Array of formatted strings (e.g. 'file.ts:1:14')
- */
-function formatLocations(locations: vscode.Location[], baseFilePath: string): string[] {
-    if (!locations.length) {
-        return [];
-    }
-
-    const baseDir = path.dirname(baseFilePath);
-    
-    return locations.map(location => {
-        // Get path relative to the base directory
-        const relativePath = path.relative(baseDir, location.uri.fsPath);
-        // Use just the filename for the output
-        const filename = path.basename(relativePath);
-        // VSCode positions are 0-based, convert to 1-based for output
-        const line = location.range.start.line + 1;
-        const character = location.range.start.character + 1;
-        
-        return `${filename}:${line}:${character}`;
-    });
 }

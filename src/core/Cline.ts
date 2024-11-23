@@ -1309,62 +1309,6 @@ export class Cline {
 							break
 						}
 					}
-					case "search_files": {
-						const relDirPath: string | undefined = block.params.path
-						const regex: string | undefined = block.params.regex
-						const filePattern: string | undefined = block.params.file_pattern
-						const sharedMessageProps: ClineSayTool = {
-							tool: "searchFiles",
-							path: getReadablePath(cwd, removeClosingTag("path", relDirPath)),
-							regex: removeClosingTag("regex", regex),
-							filePattern: removeClosingTag("file_pattern", filePattern),
-						}
-						try {
-							if (block.partial) {
-								const partialMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: "",
-								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", partialMessage, undefined, block.partial)
-								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
-								}
-								break
-							} else {
-								if (!relDirPath) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "path"))
-									break
-								}
-								if (!regex) {
-									this.consecutiveMistakeCount++
-									pushToolResult(await this.sayAndCreateMissingParamError("search_files", "regex"))
-									break
-								}
-								this.consecutiveMistakeCount = 0
-								const absolutePath = path.resolve(cwd, relDirPath)
-								const results = await regexSearchFiles(cwd, absolutePath, regex, filePattern)
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: results,
-								} satisfies ClineSayTool)
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
-										break
-									}
-								}
-								pushToolResult(results)
-								break
-							}
-						} catch (error) {
-							await handleError("searching files", error)
-							break
-						}
-					}
 					case "find_references": {
 						const symbol: string | undefined = block.params.symbol
 						const relPath: string | undefined = block.params.path
@@ -1376,7 +1320,10 @@ export class Cline {
 					
 						try {
 							if (block.partial) {
-								const partialMessage = JSON.stringify(sharedMessageProps)
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: "",
+								} satisfies ClineSayTool)
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
@@ -1398,41 +1345,77 @@ export class Cline {
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
 					
-								const completeMessage = JSON.stringify({
-									...sharedMessageProps,
-									content: `Finding references for symbol '${symbol}' in ${relPath}`
-								})
+								// Get the document
+								const document = await vscode.workspace.openTextDocument(absolutePath)
+								const text = document.getText();
 					
-								if (this.alwaysAllowReadOnly) {
-									await this.say("tool", completeMessage, undefined, false)
-								} else {
-									const didApprove = await askApproval("tool", completeMessage)
-									if (!didApprove) {
+								// Find all symbol positions in the document
+								const positions: vscode.Position[] = [];
+								let currentIndex = 0;
+								
+								// Find all occurrences of the symbol
+								while (true) {
+									const index = text.indexOf(symbol, currentIndex);
+									if (index === -1) break;
+									
+									// Convert offset to position
+									const position = document.positionAt(index);
+									
+									// Verify this is a complete symbol by checking word boundaries
+									const range = document.getWordRangeAtPosition(position);
+									if (range && document.getText(range) === symbol) {
+										positions.push(position);
+									}
+									
+									currentIndex = index + 1;
+								}
+					
+								if (positions.length === 0) {
+									pushToolResult(`Symbol '${symbol}' not found in ${absolutePath}`)
+									break
+								}
+					
+								// Try each position until we find one that returns references
+								let foundReferences = false;
+								for (const position of positions) {
+									const locations = await vscode.commands.executeCommand<vscode.Location[]>(
+										'vscode.executeReferenceProvider',
+										document.uri,
+										position
+									) || []
+					
+									if (locations.length > 0) {
+										// Format results
+										const references = locations.map(location => {
+											const relativePath = path.relative(cwd, location.uri.fsPath).replace(/\\/g, '/')
+											const line = location.range.start.line + 1
+											const character = location.range.start.character + 1
+											return `${relativePath}:${line}:${character}`
+										}).join('\n')
+					
+										const completeMessage = JSON.stringify({
+											...sharedMessageProps,
+											content: `Found ${locations.length} references for '${symbol}':\n\n${references}`
+										} satisfies ClineSayTool)
+					
+										if (this.alwaysAllowReadOnly) {
+											await this.say("tool", completeMessage, undefined, false)
+										} else {
+											const didApprove = await askApproval("tool", completeMessage)
+											if (!didApprove) {
+												break
+											}
+										}
+					
+										pushToolResult(`Found ${locations.length} references for '${symbol}':\n\n${references}`)
+										foundReferences = true;
 										break
 									}
 								}
 					
-								// Get the document and position
-								const document = await vscode.workspace.openTextDocument(absolutePath)
-								const text = document.getText()
-								const position = new vscode.Position(0, 0)
-					
-								// Find all references
-								const locations = await vscode.commands.executeCommand<vscode.Location[]>(
-									'vscode.executeReferenceProvider',
-									document.uri,
-									position
-								) || []
-					
-								// Format results
-								const references = locations.map(location => {
-									const relativePath = path.relative(cwd, location.uri.fsPath).toPosix()
-									const line = location.range.start.line + 1
-									const character = location.range.start.character + 1
-									return `${relativePath}:${line}:${character}`
-								}).join('\n')
-					
-								pushToolResult(`Found ${locations.length} references for '${symbol}':\n\n${references}`)
+								if (!foundReferences) {
+									pushToolResult(`No references found for symbol '${symbol}' in ${absolutePath}`)
+								}
 								break
 							}
 						} catch (error) {
