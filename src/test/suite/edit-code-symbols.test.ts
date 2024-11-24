@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { editCodeWithSymbols, CodeEdit, getCodeSymbols, canEditWithSymbols } from '../../services/vscode/edit-code-symbols';
+import { editCodeWithSymbols, getCodeSymbols, canEditWithSymbols } from '../../services/vscode/edit-code-symbols';
 
 suite('Edit Code Symbols Test Suite', () => {
     const projectRoot = path.resolve(__dirname, '..', '..', '..', 'src', 'test', 'suite');
@@ -74,15 +74,14 @@ suite('Edit Code Symbols Test Suite', () => {
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [{
-                type: 'replace',
-                symbol: 'getItems',
-                content: `    public getItems(): TestInterface[] {
+            const modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'replace',
+                'getItems',
+                `    public getItems(): TestInterface[] {
         return this.items.filter(item => item.id > 0);
     }`
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(editTestPath, edits);
+            );
             
             assert.ok(
                 modifiedContent.includes('return this.items.filter(item => item.id > 0);'),
@@ -104,16 +103,15 @@ suite('Edit Code Symbols Test Suite', () => {
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [{
-                type: 'insert',
-                symbol: 'getItems',
-                position: 'after',
-                content: `\n\n    public getItemById(id: number): TestInterface | undefined {
+            const modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'insert',
+                'getItems',
+                `\n\n    public getItemById(id: number): TestInterface | undefined {
         return this.items.find(item => item.id === id);
-    }`
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(editTestPath, edits);
+    }`,
+                'after'
+            );
             
             assert.ok(
                 modifiedContent.includes('public getItemById(id: number): TestInterface | undefined'),
@@ -135,12 +133,11 @@ suite('Edit Code Symbols Test Suite', () => {
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [{
-                type: 'delete',
-                symbol: 'initialize'
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(editTestPath, edits);
+            const modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'delete',
+                'initialize'
+            );
             
             assert.ok(
                 !modifiedContent.includes('initialize'),
@@ -156,35 +153,39 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should handle multiple edits in correct order', async function() {
+    test('should handle multiple operations sequentially', async function() {
         this.timeout(10000);
 
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [
-                {
-                    type: 'delete',
-                    symbol: 'initialize'
-                },
-                {
-                    type: 'replace',
-                    symbol: 'getItems',
-                    content: `    public getItems(): TestInterface[] {
+            // Delete first
+            let modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'delete',
+                'initialize'
+            );
+
+            // Then replace
+            modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'replace',
+                'getItems',
+                `    public getItems(): TestInterface[] {
         return this.items.filter(item => item.id > 0);
     }`
-                },
-                {
-                    type: 'insert',
-                    symbol: 'getItems',
-                    position: 'after',
-                    content: `\n\n    public getItemById(id: number): TestInterface | undefined {
-        return this.items.find(item => item.id === id);
-    }`
-                }
-            ];
+            );
 
-            const modifiedContent = await editCodeWithSymbols(editTestPath, edits);
+            // Finally insert
+            modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'insert',
+                'getItems',
+                `\n\n    public getItemById(id: number): TestInterface | undefined {
+        return this.items.find(item => item.id === id);
+    }`,
+                'after'
+            );
             
             assert.ok(!modifiedContent.includes('initialize'), 'Method should be deleted');
             assert.ok(modifiedContent.includes('filter(item => item.id > 0)'), 'Method should be replaced');
@@ -207,13 +208,12 @@ suite('Edit Code Symbols Test Suite', () => {
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [{
-                type: 'replace',
-                symbol: 'nonExistentMethod',
-                content: 'some content'
-            }];
-
-            await editCodeWithSymbols(editTestPath, edits);
+            await editCodeWithSymbols(
+                editTestPath,
+                'replace',
+                'nonExistentMethod',
+                'some content'
+            );
             assert.fail('Should have thrown an error');
         } catch (error) {
             assert.ok(error instanceof Error);
@@ -227,17 +227,16 @@ suite('Edit Code Symbols Test Suite', () => {
         try {
             await initializeTypeScript(editTestPath);
 
-            const edits: CodeEdit[] = [{
-                type: 'replace',
-                symbol: 'TestInterface',
-                content: `export interface TestInterface {
+            const modifiedContent = await editCodeWithSymbols(
+                editTestPath,
+                'replace',
+                'TestInterface',
+                `export interface TestInterface {
     id: number;
     name: string;
     description?: string;
 }`
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(editTestPath, edits);
+            );
             
             assert.ok(
                 modifiedContent.includes('description?: string'),

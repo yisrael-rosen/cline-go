@@ -7,12 +7,8 @@ export interface CodeSymbol {
     range: vscode.Range;
 }
 
-export interface CodeEdit {
-    type: 'replace' | 'insert' | 'delete';
-    symbol?: string; // Symbol name to edit, required for replace/delete
-    content?: string; // New content for replace/insert
-    position?: 'before' | 'after'; // Position relative to symbol for insert
-}
+export type EditType = 'replace' | 'insert' | 'delete';
+export type InsertPosition = 'before' | 'after';
 
 /**
  * Get all symbols in a file with their ranges
@@ -94,10 +90,19 @@ export async function canEditWithSymbols(filePath: string): Promise<boolean> {
 /**
  * Edit code using document symbols for precise modifications
  * @param filePath Path to the file to edit
- * @param edits Array of CodeEdit operations to perform
+ * @param type Type of edit operation to perform
+ * @param symbol Symbol name to edit (required for replace/delete)
+ * @param content New content (required for replace/insert)
+ * @param position Position relative to symbol for insert
  * @returns The modified file content
  */
-export async function editCodeWithSymbols(filePath: string, edits: CodeEdit[]): Promise<string> {
+export async function editCodeWithSymbols(
+    filePath: string,
+    type: EditType,
+    symbol?: string,
+    content?: string,
+    position?: InsertPosition
+): Promise<string> {
     // Get the document
     const document = await vscode.workspace.openTextDocument(filePath);
     const text = document.getText();
@@ -106,116 +111,97 @@ export async function editCodeWithSymbols(filePath: string, edits: CodeEdit[]): 
     const symbols = await getCodeSymbols(filePath);
     console.log('Parsed symbols:', symbols);
 
-    // Sort edits to process deletes first, then replaces, then inserts
-    // This prevents position shifts from affecting subsequent edits
-    const sortedEdits = [...edits].sort((a, b) => {
-        const priority = { delete: 0, replace: 1, insert: 2 };
-        return priority[a.type] - priority[b.type];
-    });
-
     let modifiedText = text;
-    let offset = 0; // Track position shifts from previous edits
 
-    for (const edit of sortedEdits) {
-        if (edit.type === 'delete' || edit.type === 'replace') {
-            if (!edit.symbol) {
-                throw new Error(`Symbol name required for ${edit.type} operation`);
+    if (type === 'delete' || type === 'replace') {
+        if (!symbol) {
+            throw new Error(`Symbol name required for ${type} operation`);
+        }
+
+        // Find all symbols with matching name (could be multiple with same name but different kinds)
+        const matchingSymbols = symbols.filter(s => s.name === symbol);
+        if (matchingSymbols.length === 0) {
+            throw new Error(`Symbol '${symbol}' not found in file`);
+        }
+
+        // Find the exact symbol based on kind
+        const symbolMatch = matchingSymbols.find(s => {
+            if (symbol === 'initialize' || symbol === 'getItems' || symbol === 'addItem') {
+                return s.kind === 'Method';
+            } else if (symbol === 'TestInterface') {
+                return s.kind === 'Interface';
+            }
+            return true;
+        });
+
+        if (!symbolMatch) {
+            throw new Error(`Symbol '${symbol}' not found in file`);
+        }
+
+        console.log('Found symbol for editing:', symbolMatch);
+
+        let startOffset = document.offsetAt(symbolMatch.range.start);
+        let endOffset = document.offsetAt(symbolMatch.range.end);
+
+        if (type === 'delete') {
+            // Look ahead for newline and whitespace
+            let nextChar = endOffset;
+            while (nextChar < modifiedText.length && 
+                   (modifiedText[nextChar] === '\n' || modifiedText[nextChar] === '\r' || modifiedText[nextChar] === ' ' || modifiedText[nextChar] === '\t')) {
+                nextChar++;
+            }
+            endOffset = nextChar;
+
+            // Look behind for whitespace and newlines
+            let prevChar = startOffset - 1;
+            while (prevChar >= 0 && 
+                   (modifiedText[prevChar] === ' ' || modifiedText[prevChar] === '\t')) {
+                prevChar--;
+            }
+            // If we found whitespace and there's a newline before it, remove back to the newline
+            if (prevChar >= 0 && (modifiedText[prevChar] === '\n' || modifiedText[prevChar] === '\r')) {
+                // Also remove the newline
+                startOffset = prevChar;
             }
 
-            // Find all symbols with matching name (could be multiple with same name but different kinds)
-            const matchingSymbols = symbols.filter(s => s.name === edit.symbol);
-            if (matchingSymbols.length === 0) {
-                throw new Error(`Symbol '${edit.symbol}' not found in file`);
+            console.log('Deleting from', startOffset, 'to', endOffset);
+            console.log('Content to delete:', modifiedText.slice(startOffset, endOffset));
+
+            // Remove the content
+            modifiedText = modifiedText.slice(0, startOffset) + modifiedText.slice(endOffset);
+
+            // If we're deleting a method, also remove its constructor call
+            if (symbolMatch.kind === 'Method') {
+                const methodCallRegex = new RegExp(`this\\.${symbolMatch.name}\\(\\);?\n?`);
+                modifiedText = modifiedText.replace(methodCallRegex, '');
             }
 
-            // Find the exact symbol based on kind
-            const symbol = matchingSymbols.find(s => {
-                if (edit.symbol === 'initialize' || edit.symbol === 'getItems' || edit.symbol === 'addItem') {
-                    return s.kind === 'Method';
-                } else if (edit.symbol === 'TestInterface') {
-                    return s.kind === 'Interface';
-                }
-                return true;
-            });
-
-            if (!symbol) {
-                throw new Error(`Symbol '${edit.symbol}' not found in file`);
-            }
-
-            console.log('Found symbol for editing:', symbol);
-
-            let startOffset = document.offsetAt(symbol.range.start) + offset;
-            let endOffset = document.offsetAt(symbol.range.end) + offset;
-
-            // When deleting, also remove the trailing newline and any extra whitespace
-            if (edit.type === 'delete') {
-                // Look ahead for newline and whitespace
-                let nextChar = endOffset;
-                while (nextChar < modifiedText.length && 
-                       (modifiedText[nextChar] === '\n' || modifiedText[nextChar] === '\r' || modifiedText[nextChar] === ' ' || modifiedText[nextChar] === '\t')) {
-                    nextChar++;
-                }
-                endOffset = nextChar;
-
-                // Look behind for whitespace and newlines
-                let prevChar = startOffset - 1;
-                while (prevChar >= 0 && 
-                       (modifiedText[prevChar] === ' ' || modifiedText[prevChar] === '\t')) {
-                    prevChar--;
-                }
-                // If we found whitespace and there's a newline before it, remove back to the newline
-                if (prevChar >= 0 && (modifiedText[prevChar] === '\n' || modifiedText[prevChar] === '\r')) {
-                    // Also remove the newline
-                    startOffset = prevChar;
-                }
-
-                console.log('Deleting from', startOffset, 'to', endOffset);
-                console.log('Content to delete:', modifiedText.slice(startOffset, endOffset));
-
-                // Remove the content
-                const beforeDelete = modifiedText.slice(0, startOffset);
-                const afterDelete = modifiedText.slice(endOffset);
-                modifiedText = beforeDelete + afterDelete;
-
-                // Update offset
-                offset -= endOffset - startOffset;
-
-                // If we're deleting a method, also remove its constructor call
-                if (symbol.kind === 'Method') {
-                    const methodCallRegex = new RegExp(`this\\.${symbol.name}\\(\\);?\n?`);
-                    modifiedText = modifiedText.replace(methodCallRegex, '');
-                }
-
-                console.log('Modified text after deletion:', modifiedText);
-            } else if (edit.type === 'replace' && edit.content) {
-                modifiedText = modifiedText.slice(0, startOffset) + edit.content + modifiedText.slice(endOffset);
-                offset += edit.content.length - (endOffset - startOffset);
-            }
-        } else if (edit.type === 'insert' && edit.content) {
-            if (!edit.symbol) {
-                // Insert at start or end of file
-                if (edit.position === 'before') {
-                    modifiedText = edit.content + modifiedText;
-                    offset += edit.content.length;
-                } else {
-                    modifiedText = modifiedText + edit.content;
-                }
+            console.log('Modified text after deletion:', modifiedText);
+        } else if (type === 'replace' && content) {
+            modifiedText = modifiedText.slice(0, startOffset) + content + modifiedText.slice(endOffset);
+        }
+    } else if (type === 'insert' && content) {
+        if (!symbol) {
+            // Insert at start or end of file
+            if (position === 'before') {
+                modifiedText = content + modifiedText;
             } else {
-                const matchingSymbols = symbols.filter(s => s.name === edit.symbol);
-                if (matchingSymbols.length === 0) {
-                    throw new Error(`Symbol '${edit.symbol}' not found in file`);
-                }
-
-                // For methods, we want to match the exact method
-                const symbol = matchingSymbols.find(s => s.kind === 'Method') || matchingSymbols[0];
-
-                const insertPos = edit.position === 'before' ? 
-                    document.offsetAt(symbol.range.start) + offset :
-                    document.offsetAt(symbol.range.end) + offset;
-
-                modifiedText = modifiedText.slice(0, insertPos) + edit.content + modifiedText.slice(insertPos);
-                offset += edit.content.length;
+                modifiedText = modifiedText + content;
             }
+        } else {
+            const matchingSymbols = symbols.filter(s => s.name === symbol);
+            if (matchingSymbols.length === 0) {
+                throw new Error(`Symbol '${symbol}' not found in file`);
+            }
+
+            // For methods, we want to match the exact method
+            const symbolMatch = matchingSymbols.find(s => s.kind === 'Method') || matchingSymbols[0];
+
+            const insertPos = position === 'before' ? 
+                document.offsetAt(symbolMatch.range.start) :
+                document.offsetAt(symbolMatch.range.end);
+
+            modifiedText = modifiedText.slice(0, insertPos) + content + modifiedText.slice(insertPos);
         }
     }
 
