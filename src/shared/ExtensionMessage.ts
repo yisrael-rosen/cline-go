@@ -1,4 +1,4 @@
-import { CodeEdit } from "../services/vscode/edit-code-symbols"
+import { EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
 
 export type BrowserAction = "launch" | "click" | "type" | "scroll_down" | "scroll_up" | "close"
 
@@ -60,7 +60,8 @@ export type ToolParamName =
     | "file_pattern"
     | "recursive"
     | "symbol"
-    | "edits"
+    | "type"
+    | "position"
     | "action"
     | "url"
     | "coordinate"
@@ -82,8 +83,10 @@ export interface ClineSayTool {
     path?: string
     content?: string
     diff?: string
-    edits?: CodeEdit[]
+    editType?: EditType
     symbol?: string
+    editContent?: string
+    position?: InsertPosition
     regex?: string
     filePattern?: string
 }

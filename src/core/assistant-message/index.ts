@@ -26,20 +26,21 @@ export const toolUseNames = [
 export type ToolUseName = (typeof toolUseNames)[number]
 
 export const toolParamNames = [
-	"command",
-	"path",
-	"content",
-	"regex",
-	"file_pattern",
-	"recursive",
-	"action",
-	"url",
-	"coordinate",
-	"text",
-	"question",
-	"result",
-	"symbol",
-	"edits",
+    "command",
+    "path",
+    "content",
+    "regex",
+    "file_pattern",
+    "recursive",
+    "action",
+    "url",
+    "coordinate",
+    "text",
+    "question",
+    "result",
+    "symbol",
+    "type",
+    "position"
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -104,6 +105,6 @@ export interface FindReferencesToolUse extends ToolUse {
 }
 
 export interface EditCodeSymbolsToolUse extends ToolUse {
-	name: "edit_code_symbols"
-	params: Partial<Pick<Record<ToolParamName, string>, "path" | "edits">>
+    name: "edit_code_symbols"
+    params: Partial<Pick<Record<ToolParamName, string>, "path" | "type" | "symbol" | "content" | "position">>
 }

@@ -68,21 +68,20 @@ Your file content here
 Description: Request to edit code using symbol-based modifications. This tool allows for precise edits to specific symbols (functions, methods, classes, etc.) in source code files. It uses VSCode's language services to accurately locate and modify code elements while preserving the overall structure.
 Parameters:
 - path: (required) The path of the file to edit (relative to the current working directory ${cwd.toPosix()})
-- edits: (required) A JSON array of CodeEdit objects. Each CodeEdit object has the following structure:
-    * type: The type of edit ('replace' | 'insert' | 'delete')
-    * symbol: The name of the symbol to edit (required for replace/delete)
-    * content: The new content (required for replace/insert)
-    * position: For insert operations, specifies where to insert ('before' | 'after')
+- type: (required) The type of edit operation ('replace' | 'insert' | 'delete')
+- symbol: (required for replace/delete) The name of the symbol to edit
+- content: (required for replace/insert) The new content to use
+- position: (optional, for insert operations) Specifies where to insert ('before' | 'after')
 Usage:
 <edit_code_symbols>
 <path>src/services/MyService.ts</path>
-<edits>[
-  {
-    "type": "replace",
-    "symbol": "processData",
-    "content": "async processData(input: string): Promise<void> {\n    // New implementation\n    await this.validate(input);\n    this.results.push(input);\n}"
-  }
-]</edits>
+<type>replace</type>
+<symbol>processData</symbol>
+<content>async processData(input: string): Promise<void> {
+    // New implementation
+    await this.validate(input);
+    this.results.push(input);
+}</content>
 </edit_code_symbols>
 
 ## search_files

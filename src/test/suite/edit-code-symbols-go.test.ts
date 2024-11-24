@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as vscode from 'vscode';
-import { editCodeWithSymbols, CodeEdit, getCodeSymbols, canEditWithSymbols } from '../../services/vscode/edit-code-symbols';
+import { editCodeWithSymbols, getCodeSymbols, canEditWithSymbols } from '../../services/vscode/edit-code-symbols';
 
 suite('Edit Code Symbols Go Test Suite', () => {
     let tempDir: string;
@@ -122,10 +122,11 @@ type Connection interface {
             // Give Go language server time to initialize
             await new Promise(r => setTimeout(r, 2000));
 
-            const edits: CodeEdit[] = [{
-                type: 'replace',
-                symbol: 'handle',
-                content: `func (s *Server) handle() {
+            const modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'replace',
+                'handle',
+                `func (s *Server) handle() {
     for {
         select {
         case conn := <-s.connections:
@@ -133,9 +134,7 @@ type Connection interface {
         }
     }
 }`
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(testFilePath, edits);
+            );
             
             assert.ok(
                 modifiedContent.includes('select {'),
@@ -162,17 +161,16 @@ type Connection interface {
             // Give Go language server time to initialize
             await new Promise(r => setTimeout(r, 2000));
 
-            const edits: CodeEdit[] = [{
-                type: 'insert',
-                symbol: 'handle',
-                position: 'after',
-                content: `\n\nfunc (s *Server) isConnected(conn Connection) bool {
+            const modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'insert',
+                'handle',
+                `\n\nfunc (s *Server) isConnected(conn Connection) bool {
     // Check if connection is still active
     return true
-}`
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(testFilePath, edits);
+}`,
+                'after'
+            );
             
             assert.ok(
                 modifiedContent.includes('func (s *Server) isConnected(conn Connection) bool'),
@@ -199,12 +197,11 @@ type Connection interface {
             // Give Go language server time to initialize
             await new Promise(r => setTimeout(r, 2000));
 
-            const edits: CodeEdit[] = [{
-                type: 'delete',
-                symbol: 'broadcast'
-            }];
-
-            const modifiedContent = await editCodeWithSymbols(testFilePath, edits);
+            const modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'delete',
+                'broadcast'
+            );
             
             assert.ok(
                 !modifiedContent.includes('func (s *Server) broadcast'),
@@ -220,7 +217,7 @@ type Connection interface {
         }
     });
 
-    test('should handle multiple edits in correct order', async function() {
+    test('should handle multiple operations sequentially', async function() {
         this.timeout(10000);
 
         try {
@@ -231,15 +228,19 @@ type Connection interface {
             // Give Go language server time to initialize
             await new Promise(r => setTimeout(r, 2000));
 
-            const edits: CodeEdit[] = [
-                {
-                    type: 'delete',
-                    symbol: 'broadcast'
-                },
-                {
-                    type: 'replace',
-                    symbol: 'handle',
-                    content: `func (s *Server) handle() {
+            // Delete first
+            let modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'delete',
+                'broadcast'
+            );
+
+            // Then replace
+            modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'replace',
+                'handle',
+                `func (s *Server) handle() {
     for {
         select {
         case conn := <-s.connections:
@@ -247,18 +248,18 @@ type Connection interface {
         }
     }
 }`
-                },
-                {
-                    type: 'insert',
-                    symbol: 'handle',
-                    position: 'after',
-                    content: `\n\nfunc (s *Server) isConnected(conn Connection) bool {
-    return true
-}`
-                }
-            ];
+            );
 
-            const modifiedContent = await editCodeWithSymbols(testFilePath, edits);
+            // Finally insert
+            modifiedContent = await editCodeWithSymbols(
+                testFilePath,
+                'insert',
+                'handle',
+                `\n\nfunc (s *Server) isConnected(conn Connection) bool {
+    return true
+}`,
+                'after'
+            );
             
             assert.ok(!modifiedContent.includes('broadcast'), 'Method should be deleted');
             assert.ok(modifiedContent.includes('select {'), 'Method should be replaced');
@@ -286,13 +287,12 @@ type Connection interface {
             // Give Go language server time to initialize
             await new Promise(r => setTimeout(r, 2000));
 
-            const edits: CodeEdit[] = [{
-                type: 'replace',
-                symbol: 'nonExistentMethod',
-                content: 'some content'
-            }];
-
-            await editCodeWithSymbols(testFilePath, edits);
+            await editCodeWithSymbols(
+                testFilePath,
+                'replace',
+                'nonExistentMethod',
+                'some content'
+            );
             assert.fail('Should have thrown an error');
         } catch (error) {
             assert.ok(error instanceof Error);

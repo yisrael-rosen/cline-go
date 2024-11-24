@@ -21,7 +21,7 @@ import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
-import { editCodeWithSymbols, canEditWithSymbols, CodeEdit } from "../services/vscode/edit-code-symbols"
+import { editCodeWithSymbols, canEditWithSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
 
 import {
 	BrowserAction,
@@ -883,7 +883,7 @@ export class Cline {
 				const toolDescription = () => {
 					switch (block.name) {
 						case "edit_code_symbols":
-    						return `[${block.name} for '${block.params.path}' with ${block.params.edits ? JSON.parse(block.params.edits).length : 0} edits]`
+    return `[${block.name} for '${block.params.path}' with ${block.params.type || 'unknown'} operation]`
 						case "find_references":
     						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
@@ -1029,28 +1029,42 @@ export class Cline {
 				switch (block.name) {
 					case "edit_code_symbols": {
 						const relPath: string | undefined = block.params.path
-						const editsStr: string | undefined = block.params.edits
+						const type: string | undefined = block.params.type
+						const symbol: string | undefined = block.params.symbol
+						const content: string | undefined = block.params.content
+						const position: string | undefined = block.params.position
 						
 						if (!relPath) {
 							this.consecutiveMistakeCount++
 							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path"))
 							break
 						}
-						if (!editsStr) {
+						if (!type) {
 							this.consecutiveMistakeCount++
-							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edits"))
+							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "type"))
 							break
 						}
 					
-						let edits: CodeEdit[];
-						try {
-							edits = JSON.parse(editsStr);
-							if (!Array.isArray(edits)) {
-								throw new Error("Edits must be an array");
-							}
-						} catch (error) {
-							pushToolResult(`Invalid edits format: ${error.message}. Edits should be a JSON array of CodeEdit objects.`);
-							break;
+						// Validate edit type
+						if (!['replace', 'insert', 'delete'].includes(type)) {
+							pushToolResult(`Invalid edit type: ${type}. Must be 'replace', 'insert', or 'delete'.`)
+							break
+						}
+					
+						// Validate required parameters based on operation type
+						if ((type === 'replace' || type === 'delete') && !symbol) {
+							this.consecutiveMistakeCount++
+							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "symbol"))
+							break
+						}
+						if ((type === 'replace' || type === 'insert') && !content) {
+							this.consecutiveMistakeCount++
+							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "content"))
+							break
+						}
+						if (type === 'insert' && position && !['before', 'after'].includes(position)) {
+							pushToolResult(`Invalid position: ${position}. Must be 'before' or 'after'.`)
+							break
 						}
 						
 						const absolutePath = path.resolve(cwd, relPath)
@@ -1065,8 +1079,14 @@ export class Cline {
 							const document = await vscode.workspace.openTextDocument(absolutePath)
 							const originalContent = document.getText()
 							
-							// Apply the edits
-							const newContent = await editCodeWithSymbols(absolutePath, edits)
+							// Apply the edit
+							const newContent = await editCodeWithSymbols(
+								absolutePath,
+								type as 'replace' | 'insert' | 'delete',
+								symbol,
+								content,
+								position as 'before' | 'after' | undefined
+							)
 							
 							// Create and apply the edit
 							const edit = new vscode.WorkspaceEdit()
@@ -1086,12 +1106,12 @@ export class Cline {
 							const diagnostics = vscode.languages.getDiagnostics(document.uri)
 							const newProblemsMessage = diagnostics.length > 0
 								? `\n\nNew problems detected after saving the file:\n${diagnostics
-									.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
+									.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "ts Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
 									.join("\n")}`
 								: ""
 					
 							this.didEditFile = true
-							pushToolResult(`The symbol edits were successfully applied to ${relPath}.${newProblemsMessage}`)
+							pushToolResult(`The content was successfully saved to ${relPath}.${newProblemsMessage}`)
 						} catch (error) {
 							await handleError("editing code symbols", error)
 						}
