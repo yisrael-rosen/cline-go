@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 
 /**
  * Maps VSCode's SymbolKind enum values to readable names
@@ -33,6 +32,25 @@ const symbolKindToName = new Map<vscode.SymbolKind, string>([
     [vscode.SymbolKind.TypeParameter, 'TypeParameter']
 ]);
 
+function processDocumentSymbol(symbol: vscode.DocumentSymbol): string[] {
+    const startLine = symbol.range.start.line + 1;
+    const startChar = symbol.range.start.character + 1;
+    const endLine = symbol.range.end.line + 1;
+    const endChar = symbol.range.end.character + 1;
+    const kindName = symbolKindToName.get(symbol.kind) || `Unknown(${symbol.kind})`;
+    
+    const result = [`${kindName}:${symbol.name}::${startLine}:${startChar}-${endLine}:${endChar}`];
+    
+    // Process children recursively
+    if (symbol.children) {
+        for (const child of symbol.children) {
+            result.push(...processDocumentSymbol(child));
+        }
+    }
+    
+    return result;
+}
+
 /**
  * Find document symbols in a file
  * Uses VSCode's built-in document symbol provider to find symbols in a file
@@ -63,23 +81,22 @@ export async function findDocumentSymbols(filePath: string): Promise<string[]> {
     const document = await vscode.workspace.openTextDocument(filePath);
     
     try {
-        // Execute document symbol provider to get SymbolInformation[]
-        // SymbolInformation contains: name, kind, containerName, location, and optional tags
-        const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+        // Execute document symbol provider to get DocumentSymbol[]
+        const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
             'vscode.executeDocumentSymbolProvider', 
             document.uri
         ) || [];
 
-        // Format symbols into readable strings
-        return symbols.map(symbol => {
-            const relativePath = path.relative(filePath, document.uri.fsPath).replace(/\\/g, '/');
-            const startLine = symbol.location.range.start.line + 1;
-            const startChar = symbol.location.range.start.character + 1;
-            const endLine = symbol.location.range.end.line + 1;
-            const endChar = symbol.location.range.end.character + 1;
-            const kindName = symbolKindToName.get(symbol.kind) || `Unknown(${symbol.kind})`;
-            return `${kindName}:${symbol.name}::${startLine}:${startChar}-${endLine}:${endChar}`;
-        });
+        console.log('Raw DocumentSymbols:', symbols);
+
+        // Process symbols recursively to include all nested symbols
+        const result: string[] = [];
+        for (const symbol of symbols) {
+            result.push(...processDocumentSymbol(symbol));
+        }
+
+        console.log('Processed symbols:', result);
+        return result;
     } catch (error) {
         if (error instanceof Error) {
             throw error;

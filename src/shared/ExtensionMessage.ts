@@ -1,118 +1,88 @@
-import { ApiConfiguration, ModelInfo } from "./api"
-import { HistoryItem } from "./HistoryItem"
+import { CodeEdit } from "../services/vscode/edit-code-symbols"
 
-export interface ExtensionMessage {
-	type:
-		| "action"
-		| "state"
-		| "selectedImages"
-		| "theme"
-		| "workspaceUpdated"
-		| "invoke"
-		| "partialMessage"
-	text?: string
-	action?: "chatButtonClicked" | "settingsButtonClicked" | "historyButtonClicked" | "didBecomeVisible"
-	invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
-	state?: ExtensionState
-	images?: string[]
-	filePaths?: string[]
-	partialMessage?: ClineMessage
-}
-
-export interface ExtensionState {
-	version: string
-	apiConfiguration?: ApiConfiguration
-	customInstructions?: string
-	alwaysAllowReadOnly?: boolean
-	uriScheme?: string
-	clineMessages: ClineMessage[]
-	taskHistory: HistoryItem[]
-	shouldShowAnnouncement: boolean
-}
-
-export interface ClineMessage {
-	ts: number
-	type: "ask" | "say"
-	ask?: ClineAsk
-	say?: ClineSay
-	text?: string
-	images?: string[]
-	partial?: boolean
-}
+// ... (keep existing imports and code)
 
 export type ClineAsk =
-	| "followup"
-	| "command"
-	| "command_output"
-	| "completion_result"
-	| "tool"
-	| "api_req_failed"
-	| "resume_task"
-	| "resume_completed_task"
-	| "mistake_limit_reached"
-	| "browser_action_launch"
+    | "command"
+    | "tool"
+    | "followup"
+    | "completion_result"
+    | "command_output"
+    | "api_req_failed"
+    | "resume_task"
+    | "resume_completed_task"
+    | "mistake_limit_reached"
+    | "browser_action_launch"
 
 export type ClineSay =
-	| "task"
-	| "error"
-	| "api_req_started"
-	| "api_req_finished"
-	| "text"
+    | "text"
+    | "error"
+    | "user_feedback"
+    | "user_feedback_diff"
+    | "command_output"
+    | "api_req_started"
+    | "api_req_finished"
+	| "completion_result"
 	| "completion_result"
 	| "user_feedback"
 	| "user_feedback_diff"
 	| "api_req_retried"
 	| "command_output"
 	| "tool"
-	| "shell_integration_warning"
-	| "browser_action"
-	| "browser_action_result"
+    | "completion_result"
+	| "user_feedback"
+	| "user_feedback_diff"
+	| "api_req_retried"
+	| "command_output"
+	| "tool"
+    | "shell_integration_warning"
+    | "inspect_site_result"
+    | "browser_action"
+    | "browser_action_result"
+
+export type ToolUseName =
+    | "execute_command"
+    | "read_file"
+    | "write_to_file"
+    | "edit_code_symbols"
+    | "search_files"
+    | "list_files"
+    | "list_code_definition_names"
+    | "browser_action"
+    | "ask_followup_question"
+    | "attempt_completion"
+
+export type ToolParamName =
+    | "command"
+    | "path"
+    | "content"
+    | "regex"
+    | "file_pattern"
+    | "recursive"
+    | "symbol"
+    | "edits"
+    | "action"
+    | "url"
+    | "coordinate"
+    | "text"
+    | "question"
+    | "result"
 
 export interface ClineSayTool {
-	tool:
-		| "editedExistingFile"
-		| "newFileCreated"
-		| "readFile"
-		| "listFilesTopLevel"
-		| "listFilesRecursive"
-		| "listCodeDefinitionNames"
-		| "searchFiles"
-		| "findReferences"  // Added new tool type
-	path?: string
-	diff?: string
-	content?: string
-	regex?: string
-	filePattern?: string
-	symbol?: string      // Added for findReferences
-	references?: string  // Added for findReferences
-}
-
-// must keep in sync with system prompt
-export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
-export type BrowserAction = (typeof browserActions)[number]
-
-export interface ClineSayBrowserAction {
-	action: BrowserAction
-	coordinate?: string
-	text?: string
-}
-
-export type BrowserActionResult = {
-	screenshot?: string
-	logs?: string
-	currentUrl?: string
-	currentMousePosition?: string
-}
-
-export interface ClineApiReqInfo {
-	request?: string
-	tokensIn?: number
-	tokensOut?: number
-	cacheWrites?: number
-	cacheReads?: number
-	cost?: number
-	cancelReason?: ClineApiReqCancelReason
-	streamingFailedMessage?: string
+    tool:
+        | "readFile"
+        | "editedExistingFile"
+        | "newFileCreated"
+        | "editedCodeSymbols"
+        | "listFilesTopLevel"
+        | "listFilesRecursive"
+        | "listCodeDefinitionNames"
+        | "findReferences"
+    path?: string
+    content?: string
+    diff?: string
+    edits?: CodeEdit[]
+    symbol?: string
 }
 
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
