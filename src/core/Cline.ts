@@ -883,7 +883,7 @@ export class Cline {
 				const toolDescription = () => {
 					switch (block.name) {
 						case "edit_code_symbols":
-    return `[${block.name} for '${block.params.path}' with ${block.params.type || 'unknown'} operation]`
+    						return `[${block.name} for '${block.params.path}']`
 						case "find_references":
     						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
@@ -1029,93 +1029,109 @@ export class Cline {
 				switch (block.name) {
 					case "edit_code_symbols": {
 						const relPath: string | undefined = block.params.path
-						const type: string | undefined = block.params.type
+						const editType: string | undefined = block.params.edit_type
 						const symbol: string | undefined = block.params.symbol
-						const content: string | undefined = block.params.content
+						let content: string | undefined = block.params.content
 						const position: string | undefined = block.params.position
-						
-						if (!relPath) {
-							this.consecutiveMistakeCount++
-							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path"))
-							break
+						const sharedMessageProps: ClineSayTool = {
+							tool: "editedCodeSymbols",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+							symbol: removeClosingTag("symbol", symbol)
 						}
-						if (!type) {
-							this.consecutiveMistakeCount++
-							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "type"))
-							break
-						}
-					
-						// Validate edit type
-						if (!['replace', 'insert', 'delete'].includes(type)) {
-							pushToolResult(`Invalid edit type: ${type}. Must be 'replace', 'insert', or 'delete'.`)
-							break
-						}
-					
-						// Validate required parameters based on operation type
-						if ((type === 'replace' || type === 'delete') && !symbol) {
-							this.consecutiveMistakeCount++
-							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "symbol"))
-							break
-						}
-						if ((type === 'replace' || type === 'insert') && !content) {
-							this.consecutiveMistakeCount++
-							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "content"))
-							break
-						}
-						if (type === 'insert' && position && !['before', 'after'].includes(position)) {
-							pushToolResult(`Invalid position: ${position}. Must be 'before' or 'after'.`)
-							break
-						}
-						
-						const absolutePath = path.resolve(cwd, relPath)
-						const canUseSymbols = await canEditWithSymbols(absolutePath)
-						if (!canUseSymbols) {
-							pushToolResult(`File '${relPath}' cannot be edited using symbols. Use write_to_file instead.`)
-							break
-						}
-					
 						try {
-							// Get the document
-							const document = await vscode.workspace.openTextDocument(absolutePath)
-							const originalContent = document.getText()
+							if (block.partial) {
+								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
+								break
+							}
+
+							if (!editType) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edit_type") + 
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}	
+							if (!relPath) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path") + 
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+						
+							// Validate edit type
+							if (!['replace', 'insert', 'delete'].includes(editType)) {
+								pushToolResult(`Invalid edit type: ${editType}. Must be 'replace', 'insert', or 'delete'.`)
+								break
+							}
+						
+							// Validate required parameters based on operation type
+							if ((editType === 'replace' || editType === 'delete') && !symbol) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "symbol"))
+								break
+							}
+							if ((editType === 'replace' || editType === 'insert') && !content) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "content"))
+								break
+							}
+							if (editType === 'insert' && position && !['before', 'after'].includes(position)) {
+								pushToolResult(`Invalid position: ${position}. Must be 'before' or 'after'.`)
+								break
+							}
 							
-							// Apply the edit
-							const newContent = await editCodeWithSymbols(
-								absolutePath,
-								type as 'replace' | 'insert' | 'delete',
-								symbol,
-								content,
-								position as 'before' | 'after' | undefined
-							)
-							
-							// Create and apply the edit
-							const edit = new vscode.WorkspaceEdit()
-							edit.replace(
-								document.uri,
-								new vscode.Range(0, 0, document.lineCount, 0),
-								newContent
-							)
-							
-							// Apply and save
-							await vscode.workspace.applyEdit(edit)
-							const editor = await vscode.window.showTextDocument(document)
-							await editor.document.save()
-					
-							// Get any new problems
-							await delay(1000) // wait for diagnostics to update
-							const diagnostics = vscode.languages.getDiagnostics(document.uri)
-							const newProblemsMessage = diagnostics.length > 0
-								? `\n\nNew problems detected after saving the file:\n${diagnostics
-									.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "ts Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
-									.join("\n")}`
-								: ""
-					
-							this.didEditFile = true
-							pushToolResult(`The content was successfully saved to ${relPath}.${newProblemsMessage}`)
+							const absolutePath = path.resolve(cwd, relPath)
+							const canUseSymbols = await canEditWithSymbols(absolutePath)
+							if (!canUseSymbols) {
+								pushToolResult(`File '${relPath}' cannot be edited using symbols. Use write_to_file instead.`)
+								break
+							}
+						
+							try {
+								// Get the document
+								const document = await vscode.workspace.openTextDocument(absolutePath)
+								const originalContent = document.getText()
+								
+								// Apply the edit
+								const newContent = await editCodeWithSymbols(
+									absolutePath,
+									editType as 'replace' | 'insert' | 'delete',
+									symbol,
+									content,
+									position as 'before' | 'after' | undefined
+								)
+								
+								// Create and apply the edit
+								const edit = new vscode.WorkspaceEdit()
+								edit.replace(
+									document.uri,
+									new vscode.Range(0, 0, document.lineCount, 0),
+									newContent
+								)
+								
+								// Apply and save
+								await vscode.workspace.applyEdit(edit)
+								const editor = await vscode.window.showTextDocument(document)
+								await editor.document.save()
+						
+								// Get any new problems
+								await delay(1000) // wait for diagnostics to update
+								const diagnostics = vscode.languages.getDiagnostics(document.uri)
+								const newProblemsMessage = diagnostics.length > 0
+									? `\n\nNew problems detected after saving the file:\n${diagnostics
+										.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "ts Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
+										.join("\n")}`
+									: ""
+						
+								this.didEditFile = true
+								pushToolResult(`The content was successfully saved to ${relPath}.${newProblemsMessage}`)
+							} catch (error) {
+								await handleError("editing code symbols", error)
+							}
+							break
 						} catch (error) {
 							await handleError("editing code symbols", error)
+							break
 						}
-						break
 					}
 					case "write_to_file": {
 						const relPath: string | undefined = block.params.path

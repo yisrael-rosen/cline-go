@@ -90,7 +90,7 @@ export async function canEditWithSymbols(filePath: string): Promise<boolean> {
 /**
  * Edit code using document symbols for precise modifications
  * @param filePath Path to the file to edit
- * @param type Type of edit operation to perform
+ * @param editType Type of edit operation to perform
  * @param symbol Symbol name to edit (required for replace/delete)
  * @param content New content (required for replace/insert)
  * @param position Position relative to symbol for insert
@@ -98,7 +98,7 @@ export async function canEditWithSymbols(filePath: string): Promise<boolean> {
  */
 export async function editCodeWithSymbols(
     filePath: string,
-    type: EditType,
+    editType: EditType,
     symbol?: string,
     content?: string,
     position?: InsertPosition
@@ -113,9 +113,9 @@ export async function editCodeWithSymbols(
 
     let modifiedText = text;
 
-    if (type === 'delete' || type === 'replace') {
+    if (editType === 'delete' || editType === 'replace') {
         if (!symbol) {
-            throw new Error(`Symbol name required for ${type} operation`);
+            throw new Error(`Symbol name required for ${editType} operation`);
         }
 
         // Find all symbols with matching name (could be multiple with same name but different kinds)
@@ -143,7 +143,7 @@ export async function editCodeWithSymbols(
         let startOffset = document.offsetAt(symbolMatch.range.start);
         let endOffset = document.offsetAt(symbolMatch.range.end);
 
-        if (type === 'delete') {
+        if (editType === 'delete') {
             // Look ahead for newline and whitespace
             let nextChar = endOffset;
             while (nextChar < modifiedText.length && 
@@ -177,10 +177,10 @@ export async function editCodeWithSymbols(
             }
 
             console.log('Modified text after deletion:', modifiedText);
-        } else if (type === 'replace' && content) {
+        } else if (editType === 'replace' && content) {
             modifiedText = modifiedText.slice(0, startOffset) + content + modifiedText.slice(endOffset);
         }
-    } else if (type === 'insert' && content) {
+    } else if (editType === 'insert' && content) {
         if (!symbol) {
             // Insert at start or end of file
             if (position === 'before') {

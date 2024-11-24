@@ -39,7 +39,7 @@ export const toolParamNames = [
     "question",
     "result",
     "symbol",
-    "type",
+    "edit_type",
     "position"
 ] as const
 
@@ -106,5 +106,5 @@ export interface FindReferencesToolUse extends ToolUse {
 
 export interface EditCodeSymbolsToolUse extends ToolUse {
     name: "edit_code_symbols"
-    params: Partial<Pick<Record<ToolParamName, string>, "path" | "type" | "symbol" | "content" | "position">>
+    params: Partial<Pick<Record<ToolParamName, string>, "path" | "edit_type" | "symbol" | "content" | "position">>
 }
