@@ -70,14 +70,19 @@ export async function getCodeSymbols(filePath: string): Promise<CodeSymbol[]> {
 export async function canEditWithSymbols(filePath: string): Promise<boolean> {
     try {
         const document = await vscode.workspace.openTextDocument(filePath);
-        const supportedLanguages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact'];
+        const supportedLanguages = ['typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'go'];
         
         if (!supportedLanguages.includes(document.languageId)) {
             return false;
         }
 
-        // Wait for TypeScript initialization
-        await new Promise(r => setTimeout(r, 3000));
+        // For TypeScript files, wait for initialization
+        if (['typescript', 'javascript', 'typescriptreact', 'javascriptreact'].includes(document.languageId)) {
+            await new Promise(r => setTimeout(r, 3000));
+        } else if (document.languageId === 'go') {
+            // For Go files, wait for Go language server
+            await new Promise(r => setTimeout(r, 2000));
+        }
 
         const symbols = await findDocumentSymbols(filePath);
         return symbols && symbols.length > 0;
