@@ -38,6 +38,7 @@ export type ClineSay =
     | "inspect_site_result"
     | "browser_action"
     | "browser_action_result"
+    | "task"
 
 export type ToolUseName =
     | "execute_command"
@@ -77,11 +78,14 @@ export interface ClineSayTool {
         | "listFilesRecursive"
         | "listCodeDefinitionNames"
         | "findReferences"
+        | "searchFiles"
     path?: string
     content?: string
     diff?: string
     edits?: CodeEdit[]
     symbol?: string
+    regex?: string
+    filePattern?: string
 }
 
 export interface ClineApiReqInfo {
@@ -113,8 +117,21 @@ export interface ClineSayBrowserAction {
     text?: string
 }
 
+export type ExtensionMessageType = 
+    | "state" 
+    | "action" 
+    | "theme" 
+    | "selectedImages" 
+    | "partialMessage" 
+    | "invoke" 
+    | "workspaceUpdated"
+    | "newTask"
+    | "clearTask"
+    | "askResponse"
+    | "selectImages"
+
 export interface ExtensionMessage {
-    type: "state" | "action" | "theme" | "selectedImages" | "partialMessage" | "invoke" | "workspaceUpdated"
+    type: ExtensionMessageType
     state?: any
     action?: string
     text?: string
@@ -122,4 +139,5 @@ export interface ExtensionMessage {
     partialMessage?: ClineMessage
     invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
     filePaths?: string[]
+    askResponse?: "messageResponse" | "yesButtonClicked" | "noButtonClicked"
 }

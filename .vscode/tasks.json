@@ -4,6 +4,38 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+            "label": "compile",
+            "dependsOn": [
+                "build:webview",
+                "compile:extension"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "compile:extension",
+            "type": "npm",
+            "script": "compile",
+            "group": "build",
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": ["$tsc", "$eslint-stylish"]
+        },
+        {
+            "type": "npm",
+            "script": "build:webview",
+            "group": "build",
+            "problemMatcher": [],
+            "label": "build:webview",
+            "presentation": {
+                "reveal": "silent"
+            }
+        },
+		{
             "label": "watch",
             "dependsOn": [
                 "npm: build:webview",
@@ -13,22 +45,7 @@
             "presentation": {
                 "reveal": "never"
             },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
-        },
-        {
-            "type": "npm",
-            "script": "build:webview",
-            "group": "build",
-            "problemMatcher": [],
-            "isBackground": true,
-            "label": "npm: build:webview",
-            "presentation": {
-                "group": "watch",
-                "reveal": "never"
-            }
+            "group": "build"
         },
         {
             "type": "npm",
