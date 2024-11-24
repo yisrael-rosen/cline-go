@@ -1,6 +1,15 @@
 import { CodeEdit } from "../services/vscode/edit-code-symbols"
 
-// ... (keep existing imports and code)
+export type BrowserAction = "launch" | "click" | "type" | "scroll_down" | "scroll_up" | "close"
+
+export interface BrowserActionResult {
+    logs?: string
+    screenshot?: string
+    currentUrl?: string
+    currentMousePosition?: string
+}
+
+export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
 
 export type ClineAsk =
     | "command"
@@ -22,19 +31,9 @@ export type ClineSay =
     | "command_output"
     | "api_req_started"
     | "api_req_finished"
-	| "completion_result"
-	| "completion_result"
-	| "user_feedback"
-	| "user_feedback_diff"
-	| "api_req_retried"
-	| "command_output"
-	| "tool"
     | "completion_result"
-	| "user_feedback"
-	| "user_feedback_diff"
-	| "api_req_retried"
-	| "command_output"
-	| "tool"
+    | "api_req_retried"
+    | "tool"
     | "shell_integration_warning"
     | "inspect_site_result"
     | "browser_action"
@@ -85,4 +84,42 @@ export interface ClineSayTool {
     symbol?: string
 }
 
+export interface ClineApiReqInfo {
+    request?: string
+    tokensIn?: number
+    tokensOut?: number
+    cacheWrites?: number
+    cacheReads?: number
+    cost?: number
+    cancelReason?: ClineApiReqCancelReason
+    streamingFailedMessage?: string
+}
+
 export type ClineApiReqCancelReason = "streaming_failed" | "user_cancelled"
+
+export interface ClineMessage {
+    ts: number
+    type: "ask" | "say"
+    ask?: ClineAsk
+    say?: ClineSay
+    text?: string
+    images?: string[]
+    partial?: boolean
+}
+
+export interface ClineSayBrowserAction {
+    action: BrowserAction
+    coordinate?: string
+    text?: string
+}
+
+export interface ExtensionMessage {
+    type: "state" | "action" | "theme" | "selectedImages" | "partialMessage" | "invoke" | "workspaceUpdated"
+    state?: any
+    action?: string
+    text?: string
+    images?: string[]
+    partialMessage?: ClineMessage
+    invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
+    filePaths?: string[]
+}

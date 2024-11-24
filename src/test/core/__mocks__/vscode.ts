@@ -217,7 +217,9 @@ export class TextDocument {
 
     getWordRangeAtPosition(position: Position, regexp?: RegExp): Range | undefined {
         const line = this._lines[position.line];
-        if (!line) return undefined;
+        if (!line) {
+            return undefined;
+        }
 
         regexp = regexp || /\w+/g;
         let match: RegExpExecArray | null;

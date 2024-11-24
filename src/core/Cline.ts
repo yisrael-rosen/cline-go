@@ -21,6 +21,8 @@ import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
+import { editCodeWithSymbols, canEditWithSymbols, CodeEdit } from "../services/vscode/edit-code-symbols"
+
 import {
 	BrowserAction,
 	BrowserActionResult,
@@ -880,6 +882,8 @@ export class Cline {
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
+						case "edit_code_symbols":
+    						return `[${block.name} for '${block.params.path}' with ${block.params.edits ? JSON.parse(block.params.edits).length : 0} edits]`
 						case "find_references":
     						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
@@ -1023,6 +1027,76 @@ export class Cline {
 				}
 
 				switch (block.name) {
+					case "edit_code_symbols": {
+						const relPath: string | undefined = block.params.path
+						const editsStr: string | undefined = block.params.edits
+						
+						if (!relPath) {
+							this.consecutiveMistakeCount++
+							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path"))
+							break
+						}
+						if (!editsStr) {
+							this.consecutiveMistakeCount++
+							pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edits"))
+							break
+						}
+					
+						let edits: CodeEdit[];
+						try {
+							edits = JSON.parse(editsStr);
+							if (!Array.isArray(edits)) {
+								throw new Error("Edits must be an array");
+							}
+						} catch (error) {
+							pushToolResult(`Invalid edits format: ${error.message}. Edits should be a JSON array of CodeEdit objects.`);
+							break;
+						}
+						
+						const absolutePath = path.resolve(cwd, relPath)
+						const canUseSymbols = await canEditWithSymbols(absolutePath)
+						if (!canUseSymbols) {
+							pushToolResult(`File '${relPath}' cannot be edited using symbols. Use write_to_file instead.`)
+							break
+						}
+					
+						try {
+							// Get the document
+							const document = await vscode.workspace.openTextDocument(absolutePath)
+							const originalContent = document.getText()
+							
+							// Apply the edits
+							const newContent = await editCodeWithSymbols(absolutePath, edits)
+							
+							// Create and apply the edit
+							const edit = new vscode.WorkspaceEdit()
+							edit.replace(
+								document.uri,
+								new vscode.Range(0, 0, document.lineCount, 0),
+								newContent
+							)
+							
+							// Apply and save
+							await vscode.workspace.applyEdit(edit)
+							const editor = await vscode.window.showTextDocument(document)
+							await editor.document.save()
+					
+							// Get any new problems
+							await delay(1000) // wait for diagnostics to update
+							const diagnostics = vscode.languages.getDiagnostics(document.uri)
+							const newProblemsMessage = diagnostics.length > 0
+								? `\n\nNew problems detected after saving the file:\n${diagnostics
+									.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
+									.join("\n")}`
+								: ""
+					
+							this.didEditFile = true
+							pushToolResult(`The symbol edits were successfully applied to ${relPath}.${newProblemsMessage}`)
+						} catch (error) {
+							await handleError("editing code symbols", error)
+						}
+						break
+					}
 					case "write_to_file": {
 						const relPath: string | undefined = block.params.path
 						let newContent: string | undefined = block.params.content
@@ -1357,8 +1431,9 @@ export class Cline {
 								// Find all occurrences of the symbol
 								while (true) {
 									const index = text.indexOf(symbol, currentIndex);
-									if (index === -1) break;
-									
+									if (index === -1) {
+										break;
+									}
 									// Convert offset to position
 									const position = document.positionAt(index);
 									

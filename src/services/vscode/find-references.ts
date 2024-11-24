@@ -25,7 +25,9 @@ export async function findReferences(filePath: string, symbol: string): Promise<
     let currentIndex = 0;
     while (true) {
         const index = text.indexOf(symbol, currentIndex);
-        if (index === -1) break;
+        if (index === -1) {
+            break;
+        }
         
         // Convert offset to position
         const position = document.positionAt(index);
