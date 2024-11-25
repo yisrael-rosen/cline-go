@@ -70,59 +70,51 @@ export async function getCodeSymbols(filePath: string): Promise<CodeSymbol[]> {
         const caseStart = match.index;
         let caseEnd = caseStart;
         let depth = 0;
-        let foundReturn = false;
         
         // First find the end of the case statement line
         let lineEnd = text.indexOf('\n', caseStart);
         if (lineEnd === -1) lineEnd = text.length;
         
-        // Then look for the next case/default/break/return
+        // Then look for the next case/default or end of switch block
         for (let i = lineEnd; i < text.length; i++) {
-            if (text[i] === '{') depth++;
-            else if (text[i] === '}') {
+            const currentChar = text[i];
+            const remainingText = text.slice(i);
+            
+            // Track nested structures
+            if (currentChar === '{') {
+                depth++;
+            } else if (currentChar === '}') {
                 depth--;
-                if (depth < 0) {
-                    // End of switch block
+                if (depth < 0 && !remainingText.trim().startsWith('else')) {
+                    // Found end of switch block
                     caseEnd = i;
                     break;
                 }
             }
             
-            // Look for return statement
-            if (text.slice(i).match(/^\s*return\s/)) {
-                foundReturn = true;
-                // Find the end of the return statement
-                const returnEnd = text.indexOf(';', i);
-                if (returnEnd !== -1) {
-                    caseEnd = returnEnd + 1; // Include the semicolon
+            // Only check for next case/default when we're at the same nesting level
+            if (depth === 0) {
+                // Check for next case or default
+                if (remainingText.match(/^\s*case\s|^\s*default:/)) {
+                    caseEnd = i;
+                    break;
                 }
-                break;
-            }
-            
-            // Look for next case/default
-            const nextLine = text.slice(i);
-            if (nextLine.match(/^\s*case\s|^\s*default:/)) {
-                caseEnd = i;
-                break;
-            }
-            
-            // Look for break statement
-            if (nextLine.match(/^\s*break;/)) {
-                const breakEnd = text.indexOf(';', i);
-                if (breakEnd !== -1) {
-                    caseEnd = breakEnd + 1; // Include the semicolon
-                }
-                break;
             }
         }
         
-        // If we didn't find a next case/default/break/return,
-        // use the end of the switch block
+        // If we didn't find a next case/default,
+        // use the end of the current nesting level
         if (caseEnd === caseStart) {
+            depth = 0;
             for (let i = caseStart; i < text.length; i++) {
-                if (text[i] === '}') {
-                    caseEnd = i;
-                    break;
+                if (text[i] === '{') {
+                    depth++;
+                } else if (text[i] === '}') {
+                    depth--;
+                    if (depth < 0) {
+                        caseEnd = i;
+                        break;
+                    }
                 }
             }
         }
@@ -141,7 +133,6 @@ export async function getCodeSymbols(filePath: string): Promise<CodeSymbol[]> {
 
 /**
  * Determine if a file can be edited using symbols
- * Checks if the file is a supported language and has symbols
  */
 export async function canEditWithSymbols(filePath: string): Promise<boolean> {
     try {
@@ -169,12 +160,6 @@ export async function canEditWithSymbols(filePath: string): Promise<boolean> {
 
 /**
  * Edit code using document symbols for precise modifications
- * @param filePath Path to the file to edit
- * @param editType Type of edit operation to perform
- * @param symbol Symbol name to edit (required for replace/delete)
- * @param content New content (required for replace/insert)
- * @param position Position relative to symbol for insert
- * @returns The modified file content
  */
 export async function editCodeWithSymbols(
     filePath: string,
@@ -183,14 +168,10 @@ export async function editCodeWithSymbols(
     content?: string,
     position?: InsertPosition
 ): Promise<string> {
-    // Get the document
     const document = await vscode.workspace.openTextDocument(filePath);
     const text = document.getText();
-    
-    // Get document symbols with their ranges
     const symbols = await getCodeSymbols(filePath);
-    console.log('Parsed symbols:', symbols);
-
+    
     let modifiedText = text;
 
     if (editType === 'delete' || editType === 'replace') {
@@ -198,13 +179,11 @@ export async function editCodeWithSymbols(
             throw new Error(`Symbol name required for ${editType} operation`);
         }
 
-        // Find all symbols with matching name (could be multiple with same name but different kinds)
         const matchingSymbols = symbols.filter(s => s.name === symbol);
         if (matchingSymbols.length === 0) {
             throw new Error(`Symbol '${symbol}' not found in file`);
         }
 
-        // Find the exact symbol based on kind
         const symbolMatch = matchingSymbols.find(s => {
             if (symbol === 'initialize' || symbol === 'getItems' || symbol === 'addItem') {
                 return s.kind === 'Method';
@@ -220,77 +199,53 @@ export async function editCodeWithSymbols(
             throw new Error(`Symbol '${symbol}' not found in file`);
         }
 
-        console.log('Found symbol for editing:', symbolMatch);
-
         let startOffset = document.offsetAt(symbolMatch.range.start);
         let endOffset = document.offsetAt(symbolMatch.range.end);
 
         if (editType === 'delete') {
-            // Special handling for case statements
+            // For case statements, preserve switch block structure
             if (symbolMatch.kind === 'Case') {
-                // Look ahead for the next case or end of switch
-                let nextChar = endOffset;
-                while (nextChar < modifiedText.length && 
-                       !modifiedText.slice(nextChar).match(/^\s*case\s|^\s*default:|^\s*}/)) {
-                    nextChar++;
+                // Find the next non-whitespace content
+                let nextContentMatch = modifiedText.slice(endOffset).match(/\S/);
+                if (nextContentMatch && typeof nextContentMatch.index === 'number') {
+                    endOffset += nextContentMatch.index;
                 }
-                endOffset = nextChar;
 
-                // Look behind for whitespace
-                let prevChar = startOffset - 1;
-                while (prevChar >= 0 && 
-                       (modifiedText[prevChar] === ' ' || modifiedText[prevChar] === '\t')) {
-                    prevChar--;
-                }
-                if (prevChar >= 0 && (modifiedText[prevChar] === '\n' || modifiedText[prevChar] === '\r')) {
-                    startOffset = prevChar;
-                }
-            } else {
-                // Standard symbol deletion logic
-                let nextChar = endOffset;
-                while (nextChar < modifiedText.length && 
-                       (modifiedText[nextChar] === '\n' || modifiedText[nextChar] === '\r' || 
-                        modifiedText[nextChar] === ' ' || modifiedText[nextChar] === '\t')) {
-                    nextChar++;
-                }
-                endOffset = nextChar;
-
-                let prevChar = startOffset - 1;
-                while (prevChar >= 0 && 
-                       (modifiedText[prevChar] === ' ' || modifiedText[prevChar] === '\t')) {
-                    prevChar--;
-                }
-                if (prevChar >= 0 && (modifiedText[prevChar] === '\n' || modifiedText[prevChar] === '\r')) {
-                    startOffset = prevChar;
+                // Preserve indentation
+                let prevNewline = modifiedText.lastIndexOf('\n', startOffset);
+                if (prevNewline !== -1) {
+                    startOffset = prevNewline + 1;
                 }
             }
 
-            console.log('Deleting from', startOffset, 'to', endOffset);
-            console.log('Content to delete:', modifiedText.slice(startOffset, endOffset));
-
-            // Remove the content
             modifiedText = modifiedText.slice(0, startOffset) + modifiedText.slice(endOffset);
 
-            // If we're deleting a method, also remove its constructor call
             if (symbolMatch.kind === 'Method' && symbolMatch.name === 'initialize') {
-                // Remove the constructor call with surrounding whitespace
                 const constructorCallRegex = new RegExp(`\\s*this\\.${symbolMatch.name}\\(\\);\\s*`);
                 modifiedText = modifiedText.replace(constructorCallRegex, '\n');
             }
-
-            console.log('Modified text after deletion:', modifiedText);
         } else if (editType === 'replace' && content) {
-            // For case statements, ensure we include any indentation
+            // For case statements, preserve indentation and structure
             if (symbolMatch.kind === 'Case') {
                 const lineStart = modifiedText.lastIndexOf('\n', startOffset) + 1;
                 const indentation = modifiedText.slice(lineStart, startOffset).match(/^\s*/)?.[0] || '';
-                content = content.replace(/^/gm, indentation);
+                
+                // Ensure proper indentation for multi-line content
+                content = content.split('\n').map((line, i) => {
+                    if (i === 0) return line; // First line keeps original indentation
+                    return indentation + line;
+                }).join('\n');
+
+                // Ensure proper spacing between cases
+                if (!content.endsWith('\n')) {
+                    content += '\n';
+                }
             }
+            
             modifiedText = modifiedText.slice(0, startOffset) + content + modifiedText.slice(endOffset);
         }
     } else if (editType === 'insert' && content) {
         if (!symbol) {
-            // Insert at start or end of file
             if (position === 'before') {
                 modifiedText = content + modifiedText;
             } else {
@@ -302,7 +257,6 @@ export async function editCodeWithSymbols(
                 throw new Error(`Symbol '${symbol}' not found in file`);
             }
 
-            // For methods and cases, we want to match the exact one
             const symbolMatch = matchingSymbols.find(s => 
                 (s.kind === 'Method') || 
                 (s.kind === 'Case' && symbol.startsWith('case '))
@@ -312,11 +266,19 @@ export async function editCodeWithSymbols(
                 document.offsetAt(symbolMatch.range.start) :
                 document.offsetAt(symbolMatch.range.end);
 
-            // For case statements, ensure we include any indentation
+            // For case statements, preserve indentation and structure
             if (symbolMatch.kind === 'Case') {
                 const lineStart = modifiedText.lastIndexOf('\n', insertPos) + 1;
                 const indentation = modifiedText.slice(lineStart, symbolMatch.range.start.character).match(/^\s*/)?.[0] || '';
-                content = content.replace(/^/gm, indentation);
+                
+                // Ensure proper indentation and spacing
+                content = content.split('\n').map(line => indentation + line).join('\n');
+                if (!content.startsWith('\n')) {
+                    content = '\n' + content;
+                }
+                if (!content.endsWith('\n')) {
+                    content += '\n';
+                }
             }
 
             modifiedText = modifiedText.slice(0, insertPos) + content + modifiedText.slice(insertPos);

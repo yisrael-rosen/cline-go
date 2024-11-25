@@ -49,30 +49,31 @@ export function processNestedAction(action: string, subAction: string): string {
     }
 }
 
-export function handleComplexCase(input: any): string {
-    switch (typeof input) {
+export function handleComplexCase(input: unknown): string {
+    const inputType = typeof input;
+    switch (inputType) {
         // Case with multi-line comment
         /* This is a complex case
            with multiple lines
            of comments */
-                        case 'string':
+                case 'string':
                     return 'Modified string case';
         case 'newCase':
             return 'New case added';
-            }
-            return 'Empty string';
 
-        // Case with inline comment and multiple statements
-        case 'number': // Handle numeric input
+
+        case 'number': { // Handle numeric input
             let result = '';
-            if (input > 0) {
+            const numInput = input as number;
+            if (numInput > 0) {
                 result = 'Positive';
-            } else if (input < 0) {
+            } else if (numInput < 0) {
                 result = 'Negative';
             } else {
                 result = 'Zero';
             }
             return result;
+        }
 
         // Empty case with fallthrough
         case 'undefined':
@@ -85,7 +86,7 @@ export function handleComplexCase(input: any): string {
 
         // Case with escaped characters and quotes
         case 'boolean':
-            return 'Boolean: "' + input.toString() + '"\\n';
+            return 'Boolean: "' + String(input) + '"\\n';
 
         default: {
             // Default case with block
