@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { findDocumentSymbols } from './find-document-symbols';
+import { DiffViewProvider } from '../../integrations/editor/DiffViewProvider';
 
 export interface CodeSymbol {
     kind: string;

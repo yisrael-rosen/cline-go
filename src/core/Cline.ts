@@ -1043,7 +1043,7 @@ export class Cline {
 								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
 								break
 							}
-
+					
 							if (!editType) {
 								this.consecutiveMistakeCount++
 								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edit_type") + 
@@ -1091,7 +1091,7 @@ export class Cline {
 								const document = await vscode.workspace.openTextDocument(absolutePath)
 								const originalContent = document.getText()
 								
-								// Apply the edit
+								// Generate the modified content
 								const newContent = await editCodeWithSymbols(
 									absolutePath,
 									editType as 'replace' | 'insert' | 'delete',
@@ -1099,37 +1099,70 @@ export class Cline {
 									content,
 									position as 'before' | 'after' | undefined
 								)
-								
-								// Create and apply the edit
-								const edit = new vscode.WorkspaceEdit()
-								edit.replace(
-									document.uri,
-									new vscode.Range(0, 0, document.lineCount, 0),
-									newContent
-								)
-								
-								// Apply and save
-								await vscode.workspace.applyEdit(edit)
-								const editor = await vscode.window.showTextDocument(document)
-								await editor.document.save()
-						
-								// Get any new problems
-								await delay(1000) // wait for diagnostics to update
-								const diagnostics = vscode.languages.getDiagnostics(document.uri)
-								const newProblemsMessage = diagnostics.length > 0
-									? `\n\nNew problems detected after saving the file:\n${diagnostics
-										.map((d) => `- [${d.severity === vscode.DiagnosticSeverity.Error ? "ts Error" : "Warning"}] Line ${d.range.start.line + 1}: ${d.message}`)
-										.join("\n")}`
-									: ""
-						
+					
+								// Show diff preview
+								this.diffViewProvider.editType = "modify"
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+								await this.diffViewProvider.update(newContent, true)
+								await delay(300) // wait for diff view to update
+								this.diffViewProvider.scrollToFirstDiff()
+								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+					
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									diff: formatResponse.createPrettyPatch(
+										relPath,
+										this.diffViewProvider.originalContent,
+										newContent
+									)
+								} satisfies ClineSayTool)
+					
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									await this.diffViewProvider.revertChanges()
+									break
+								}
+					
+								// Apply and save the changes
+								const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
 								this.didEditFile = true
-								pushToolResult(`The content was successfully saved to ${relPath}.${newProblemsMessage}`)
+					
+								if (userEdits) {
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: "editedCodeSymbols",
+											path: getReadablePath(cwd, relPath),
+											diff: userEdits,
+										} satisfies ClineSayTool)
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`
+									)
+								} else {
+									pushToolResult(
+										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`
+									)
+								}
+								await this.diffViewProvider.reset()
+								break
 							} catch (error) {
 								await handleError("editing code symbols", error)
+								await this.diffViewProvider.reset()
+								break
 							}
-							break
 						} catch (error) {
 							await handleError("editing code symbols", error)
+							await this.diffViewProvider.reset()
 							break
 						}
 					}
