@@ -20,6 +20,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"find_references",
 	"edit_code_symbols",
+	"get_code_symbols",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -108,3 +109,9 @@ export interface EditCodeSymbolsToolUse extends ToolUse {
     name: "edit_code_symbols"
     params: Partial<Pick<Record<ToolParamName, string>, "path" | "edit_type" | "symbol" | "content" | "position">>
 }
+
+export interface GetCodeSymbols extends ToolUse {
+	name: "get_code_symbols"
+	params: Partial<Pick<Record<ToolParamName, string>, "path">>
+}
+

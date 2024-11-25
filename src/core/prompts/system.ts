@@ -83,6 +83,15 @@ Your file content here
 <position>optional for insert operations</position>
 </edit_code_symbols>
 
+## get_code_symbols
+Description: Request to retrieve the structure of code symbols (functions, methods, classes, etc.) in a source code file. This tool is particularly useful before using edit_code_symbols to understand the available symbols that can be edited in a file. It uses VSCode's language services to accurately identify symbols.
+Parameters:
+- path: (required) The path of the file to analyze (relative to the current working directory ${cwd.toPosix()})
+Usage:
+<get_code_symbols>
+<path>File path here</path>
+</get_code_symbols>
+
 ## search_files
 Description: Request to perform a regex search across files in a specified directory, providing context-rich results. This tool searches for patterns or specific content across multiple files, displaying each match with encapsulating context.
 Parameters:
@@ -247,7 +256,8 @@ CAPABILITIES
 - When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('${cwd.toPosix()}') will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.
 - You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.
 - You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.
-- When making code changes, you have two main tools:
+- When making code changes, you have these main tools:
+    - get_code_symbols: Use this tool to analyze a file's structure and understand what symbols (functions, methods, classes) are available for editing. This should be used before edit_code_symbols to ensure accurate targeting of code elements.
     - edit_code_symbols: Use this tool when you need to make precise changes to specific code elements like functions, methods, or classes. This is the preferred tool for:
         - Refactoring a method's implementation while preserving its signature
         - Adding new methods to an existing class

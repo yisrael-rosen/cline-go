@@ -21,7 +21,7 @@ import { ApiConfiguration } from "../shared/api"
 import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
-import { editCodeWithSymbols, canEditWithSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
+import { editCodeWithSymbols, canEditWithSymbols, getCodeSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
 
 import {
 	BrowserAction,
@@ -882,6 +882,8 @@ export class Cline {
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
+						case "get_code_symbols":
+    						return `[${block.name} for '${block.params.path}']`
 						case "edit_code_symbols":
     						return `[${block.name} for '${block.params.path}']`
 						case "find_references":
@@ -1027,6 +1029,60 @@ export class Cline {
 				}
 
 				switch (block.name) {
+					case "get_code_symbols": {
+						const relPath: string | undefined = block.params.path
+						const sharedMessageProps: ClineSayTool = {
+							tool: "getCodeSymbols",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath))
+						}
+						try {
+							if (block.partial) {
+								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
+								break
+							}
+					
+							if (!relPath) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("get_code_symbols", "path"))
+								break
+							}
+							
+							const absolutePath = path.resolve(cwd, relPath)
+							const canUseSymbols = await canEditWithSymbols(absolutePath)
+							if (!canUseSymbols) {
+								pushToolResult(`File '${relPath}' cannot be analyzed using symbols.`)
+								break
+							}
+						
+							try {
+								const symbols = await getCodeSymbols(absolutePath)
+								const symbolsResult = `File structure for '${relPath}':\n${symbols.map(s => `${s.kind}: ${s.name}`).join('\n')}`
+								
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: symbolsResult
+								} satisfies ClineSayTool)
+					
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", completeMessage, undefined, false)
+								} else {
+									const didApprove = await askApproval("tool", completeMessage)
+									if (!didApprove) {
+										break
+									}
+								}
+								
+								pushToolResult(symbolsResult)
+								break
+							} catch (error) {
+								await handleError("getting code symbols", error)
+								break
+							}
+						} catch (error) {
+							await handleError("getting code symbols", error)
+							break
+						}
+					}
 					case "edit_code_symbols": {
 						const relPath: string | undefined = block.params.path
 						const editType: string | undefined = block.params.edit_type

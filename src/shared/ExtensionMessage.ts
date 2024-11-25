@@ -75,6 +75,7 @@ export interface ClineSayTool {
         | "editedExistingFile"
         | "newFileCreated"
         | "editedCodeSymbols"
+        | "getCodeSymbols"
         | "listFilesTopLevel"
         | "listFilesRecursive"
         | "listCodeDefinitionNames"
