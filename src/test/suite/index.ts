@@ -27,6 +27,14 @@ export async function run(): Promise<void> {
             mocha.addFile(testFile);
         });
 
+        // Support for test tags via environment variable
+        const testTags = process.env.TEST_TAGS;
+        if (testTags) {
+            const tags = testTags.split(',').map(tag => tag.trim());
+            const tagPattern = tags.map(tag => `\\[${tag}\\]`).join('|');
+            mocha.grep(new RegExp(tagPattern));
+        }
+
         // Run the mocha tests
         return new Promise<void>((resolve, reject) => {
             try {

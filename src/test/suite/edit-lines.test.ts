@@ -17,7 +17,7 @@ suite('Edit Lines Test Suite', () => {
         await new Promise(r => setTimeout(r, 1000));
     }
 
-    test('should replace a single line', async function() {
+    test('[edit-lines] should replace a single line', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -46,7 +46,7 @@ Line 5`;
         }
     });
 
-    test('should replace multiple lines', async function() {
+    test('[edit-lines] should replace multiple lines', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -77,7 +77,7 @@ Line 5`;
         }
     });
 
-    test('should insert content after a line', async function() {
+    test('[edit-lines] should insert content after a line', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -107,7 +107,7 @@ Line 3`;
         }
     });
 
-    test('should delete lines', async function() {
+    test('[edit-lines] should delete lines', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -136,7 +136,7 @@ Line 5`;
         }
     });
 
-    test('should preserve indentation when specified', async function() {
+    test('[edit-lines] should preserve indentation when specified', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -164,7 +164,7 @@ Line 5`;
         }
     });
 
-    test('should trim whitespace when specified', async function() {
+    test('[edit-lines] should trim whitespace when specified', async function() {
         this.timeout(10000);
 
         const initialContent = 
@@ -190,7 +190,7 @@ Line 3`;
         }
     });
 
-    test('should handle invalid line numbers', async function() {
+    test('[edit-lines] should handle invalid line numbers', async function() {
         this.timeout(10000);
 
         const initialContent = 'Line 1\nLine 2\nLine 3';
@@ -221,7 +221,7 @@ Line 3`;
         }
     });
 
-    test('should handle empty files', async function() {
+    test('[edit-lines] should handle empty files', async function() {
         this.timeout(10000);
 
         try {
@@ -241,7 +241,7 @@ Line 3`;
         }
     });
 
-    test('should handle end of file operations', async function() {
+    test('[edit-lines] should handle end of file operations', async function() {
         this.timeout(10000);
 
         const initialContent = 'Line 1\nLine 2';
@@ -265,7 +265,7 @@ Line 3`;
         }
     });
 
-    test('should handle mixed line endings', async function() {
+    test('[edit-lines] should handle mixed line endings', async function() {
         this.timeout(10000);
 
         const initialContent = 'Line 1\r\nLine 2\nLine 3\r\nLine 4';
@@ -288,7 +288,7 @@ Line 3`;
         }
     });
 
-    test('should handle mixed indentation', async function() {
+    test('[edit-lines] should handle mixed indentation', async function() {
         this.timeout(10000);
 
         const initialContent = 
