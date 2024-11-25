@@ -5,6 +5,15 @@ export interface LineEditOptions {
     trimWhitespace?: boolean;
 }
 
+export interface LineMatch {
+    lineNumber: number;
+    lineContent: string;
+    context?: {
+        before: string[];
+        after: string[];
+    };
+}
+
 /**
  * Edit text content in memory
  * 
@@ -110,17 +119,54 @@ export async function editLines(
 }
 
 /**
+ * Find all occurrences of text in a file with context
+ * 
+ * @param filePath Path to the file to search
+ * @param searchText Text to search for
+ * @param contextLines Number of lines of context to include before and after each match (default: 2)
+ * @param isRegex Whether to treat searchText as a regular expression
+ * @returns Array of matches with line numbers and context
+ */
+export async function findLines(
+    filePath: string,
+    searchText: string,
+    contextLines: number = 2,
+    isRegex: boolean = false
+): Promise<LineMatch[]> {
+    const document = await vscode.workspace.openTextDocument(filePath);
+    const text = document.getText();
+    const lines = text.split(/\r?\n/);
+    const matches: LineMatch[] = [];
+
+    const searchRegex = isRegex ? new RegExp(searchText, 'g') : new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+
+    for (let i = 0; i < lines.length; i++) {
+        if (searchRegex.test(lines[i])) {
+            const match: LineMatch = {
+                lineNumber: i + 1,
+                lineContent: lines[i],
+                context: {
+                    before: lines.slice(Math.max(0, i - contextLines), i),
+                    after: lines.slice(i + 1, Math.min(lines.length, i + 1 + contextLines))
+                }
+            };
+            matches.push(match);
+        }
+        searchRegex.lastIndex = 0; // Reset regex state
+    }
+
+    return matches;
+}
+
+/**
  * Get the line number for text
  */
 export async function findLineNumber(
     filePath: string,
     searchText: string
 ): Promise<number | null> {
-    const document = await vscode.workspace.openTextDocument(filePath);
-    const text = document.getText();
-    const index = text.indexOf(searchText);
-    if (index === -1) return null;
-    return document.positionAt(index).line + 1;
+    const matches = await findLines(filePath, searchText);
+    return matches.length > 0 ? matches[0].lineNumber : null;
 }
 
 /**
