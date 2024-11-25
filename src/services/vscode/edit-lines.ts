@@ -6,7 +6,30 @@ export interface LineEditOptions {
 }
 
 /**
- * Edit a specific line in text content
+ * Edit text content in memory
+ * 
+ * Why in-memory operations?
+ * 1. Reliability: File system operations can be flaky due to:
+ *    - File locks
+ *    - Permissions issues
+ *    - Race conditions with other processes
+ *    - Disk I/O delays
+ * 
+ * 2. Testing:
+ *    - Tests are more predictable without file system dependencies
+ *    - Faster execution without I/O overhead
+ *    - Can test edge cases without creating actual files
+ *    - No cleanup needed after tests
+ * 
+ * 3. Reusability:
+ *    - Same logic can be used for files, clipboard, or any text source
+ *    - Easier to compose with other operations
+ *    - Can be used in memory-only environments (like web workers)
+ * 
+ * 4. Debugging:
+ *    - Easier to inspect state at any point
+ *    - No need to check file contents
+ *    - Can log exact content without file system access
  */
 export function editText(
     text: string,
@@ -71,6 +94,9 @@ export function editText(
 
 /**
  * Edit a specific line in a file
+ * 
+ * This is a wrapper around editText that handles file I/O.
+ * The actual text manipulation is done in memory for reliability.
  */
 export async function editLines(
     filePath: string,

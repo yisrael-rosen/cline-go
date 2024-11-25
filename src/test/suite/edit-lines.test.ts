@@ -1,6 +1,29 @@
 import * as assert from 'assert';
 import { editText, LineEditOptions } from '../../services/vscode/edit-lines';
 
+/**
+ * Edit Lines Test Suite
+ * 
+ * Why test with in-memory content?
+ * 
+ * 1. Test Reliability:
+ *    - No file system flakiness
+ *    - No race conditions
+ *    - Predictable results
+ *    - Fast execution
+ * 
+ * 2. Edge Cases:
+ *    - Easy to test empty files
+ *    - Can test various line endings
+ *    - Can test mixed indentation
+ *    - No need to create actual files
+ * 
+ * 3. Debugging:
+ *    - Clear input/output logging
+ *    - Visible line endings
+ *    - Easy to inspect state
+ *    - No file system inspection needed
+ */
 suite('Edit Lines Test Suite', () => {
     test('[edit-lines] should replace a single line', () => {
         const initialContent = 
