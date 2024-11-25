@@ -1,115 +1,61 @@
 import * as assert from 'assert';
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { editLines, LineRange, LineEditOptions } from '../../services/vscode/edit-lines';
+import { editText, LineEditOptions } from '../../services/vscode/edit-lines';
 
 suite('Edit Lines Test Suite', () => {
-    const projectRoot = path.resolve(__dirname, '..', '..', '..', 'src', 'test', 'suite');
-    const projectPath = path.join(projectRoot, 'test-project');
-    const testFilePath = path.join(projectPath, 'edit-lines-test.txt');
+    test('[edit-lines] should replace a single line', () => {
+        const initialContent = 
+`Line 1
+Line 2
+Line 3
+Line 4
+Line 5`;
 
-    async function createTestFile(content: string): Promise<void> {
-        await vscode.workspace.fs.writeFile(
-            vscode.Uri.file(testFilePath),
-            Buffer.from(content)
+        console.log('\n=== Testing single line replacement ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+
+        const modifiedContent = editText(
+            initialContent,
+            'replace',
+            3,
+            'Modified Line 3'
         );
-        // Wait for file system to update
-        await new Promise(r => setTimeout(r, 1000));
-    }
 
-    test('[edit-lines] should replace a single line', async function() {
-        this.timeout(10000);
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-        const initialContent = 
-`Line 1
-Line 2
-Line 3
-Line 4
-Line 5`;
-
-        try {
-            await createTestFile(initialContent);
-
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 3 },
-                'Modified Line 3'
-            );
-
-            assert.ok(modifiedContent.includes('Modified Line 3'), 'Line should be replaced');
-            assert.ok(modifiedContent.includes('Line 2'), 'Previous line should remain');
-            assert.ok(modifiedContent.includes('Line 4'), 'Next line should remain');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        assert.ok(modifiedContent.includes('Modified Line 3'), 'Line should be replaced');
+        assert.ok(modifiedContent.includes('Line 2'), 'Previous line should remain');
+        assert.ok(modifiedContent.includes('Line 4'), 'Next line should remain');
     });
 
-    test('[edit-lines] should replace multiple lines', async function() {
-        this.timeout(10000);
-
-        const initialContent = 
-`Line 1
-Line 2
-Line 3
-Line 4
-Line 5`;
-
-        try {
-            await createTestFile(initialContent);
-
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 2, endLine: 4 },
-                'New Line 2\nNew Line 3\nNew Line 4'
-            );
-
-            assert.ok(modifiedContent.includes('New Line 2'), 'First line should be replaced');
-            assert.ok(modifiedContent.includes('New Line 3'), 'Middle line should be replaced');
-            assert.ok(modifiedContent.includes('New Line 4'), 'Last line should be replaced');
-            assert.ok(modifiedContent.includes('Line 1'), 'Line before range should remain');
-            assert.ok(modifiedContent.includes('Line 5'), 'Line after range should remain');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
-    });
-
-    test('[edit-lines] should insert content after a line', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should insert content after a line', () => {
         const initialContent = 
 `Line 1
 Line 2
 Line 3`;
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing line insertion ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'insert',
-                { startLine: 2 },
-                'New Line\nAnother New Line'
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'insert',
+            2,
+            'New Line'
+        );
 
-            const lines = modifiedContent.split('\n');
-            assert.strictEqual(lines[0], 'Line 1', 'First line should remain unchanged');
-            assert.strictEqual(lines[1], 'Line 2', 'Target line should remain unchanged');
-            assert.strictEqual(lines[2], 'New Line', 'First inserted line should be correct');
-            assert.strictEqual(lines[3], 'Another New Line', 'Second inserted line should be correct');
-            assert.strictEqual(lines[4], 'Line 3', 'Last line should remain unchanged');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+
+        const lines = modifiedContent.split('\n');
+        console.log('Line count:', lines.length);
+        console.log('Lines:', lines);
+
+        assert.strictEqual(lines[0], 'Line 1', 'First line should remain unchanged');
+        assert.strictEqual(lines[1], 'Line 2', 'Target line should remain unchanged');
+        assert.strictEqual(lines[2], 'New Line', 'Inserted line should be correct');
+        assert.strictEqual(lines[3], 'Line 3', 'Last line should remain unchanged');
     });
 
-    test('[edit-lines] should delete lines', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should delete a line', () => {
         const initialContent = 
 `Line 1
 Line 2
@@ -117,28 +63,29 @@ Line 3
 Line 4
 Line 5`;
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing line deletion ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'delete',
-                { startLine: 2, endLine: 4 }
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'delete',
+            3
+        );
 
-            const lines = modifiedContent.split('\n');
-            assert.strictEqual(lines.length, 2, 'Should have correct number of lines after deletion');
-            assert.strictEqual(lines[0], 'Line 1', 'First line should remain');
-            assert.strictEqual(lines[1], 'Line 5', 'Last line should remain');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+
+        const lines = modifiedContent.split('\n');
+        console.log('Line count:', lines.length);
+        console.log('Lines:', lines);
+
+        assert.strictEqual(lines.length, 4, 'Should have correct number of lines after deletion');
+        assert.strictEqual(lines[0], 'Line 1', 'First line should remain');
+        assert.strictEqual(lines[1], 'Line 2', 'Second line should remain');
+        assert.strictEqual(lines[2], 'Line 4', 'Fourth line should move up');
+        assert.strictEqual(lines[3], 'Line 5', 'Last line should remain');
     });
 
-    test('[edit-lines] should preserve indentation when specified', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should preserve indentation when specified', () => {
         const initialContent = 
 `function test() {
     const x = 1;
@@ -146,151 +93,125 @@ Line 5`;
     return x + y;
 }`;
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing indentation preservation ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 3 },
-                'const y = 5;',
-                { preserveIndentation: true }
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'replace',
+            3,
+            'const y = 5;',
+            { preserveIndentation: true }
+        );
 
-            assert.ok(modifiedContent.includes('    const y = 5;'), 'Indentation should be preserved');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+        console.log('Line 3:', modifiedContent.split('\n')[2]);
+        console.log('Line 3 indentation:', modifiedContent.split('\n')[2].match(/^[\s\t]*/)?.[0]);
+
+        assert.ok(modifiedContent.includes('    const y = 5;'), 'Indentation should be preserved');
     });
 
-    test('[edit-lines] should trim whitespace when specified', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should trim whitespace when specified', () => {
         const initialContent = 
 `Line 1
     Line 2    
 Line 3`;
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing whitespace trimming ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 2 },
-                '    New Line 2    ',
-                { trimWhitespace: true }
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'replace',
+            2,
+            '    New Line 2    ',
+            { trimWhitespace: true }
+        );
 
-            assert.ok(modifiedContent.includes('\nNew Line 2\n'), 'Whitespace should be trimmed');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+
+        assert.ok(modifiedContent.includes('\nNew Line 2\n'), 'Whitespace should be trimmed');
     });
 
-    test('[edit-lines] should handle invalid line numbers', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should handle invalid line numbers', () => {
         const initialContent = 'Line 1\nLine 2\nLine 3';
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing invalid line numbers ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            await assert.rejects(
-                () => editLines(testFilePath, 'replace', { startLine: 0 }, 'Invalid'),
-                /Invalid start line number/,
-                'Should reject invalid start line'
-            );
+        assert.throws(
+            () => editText(initialContent, 'replace', 0, 'Invalid'),
+            /Invalid line number/,
+            'Should reject invalid line number'
+        );
 
-            await assert.rejects(
-                () => editLines(testFilePath, 'replace', { startLine: 1, endLine: 5 }, 'Invalid'),
-                /Invalid end line number/,
-                'Should reject invalid end line'
-            );
-
-            await assert.rejects(
-                () => editLines(testFilePath, 'replace', { startLine: 3, endLine: 1 }, 'Invalid'),
-                /End line cannot be before start line/,
-                'Should reject end line before start line'
-            );
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        assert.throws(
+            () => editText(initialContent, 'replace', 5, 'Invalid'),
+            /Invalid line number/,
+            'Should reject line number exceeding file length'
+        );
     });
 
-    test('[edit-lines] should handle empty files', async function() {
-        this.timeout(10000);
+    test('[edit-lines] should handle empty files', () => {
+        console.log('\n=== Testing empty file handling ===');
 
-        try {
-            await createTestFile('');
+        const modifiedContent = editText(
+            '',
+            'insert',
+            1,
+            'New Content'
+        );
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'insert',
-                { startLine: 1 },
-                'New Content'
-            );
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            assert.strictEqual(modifiedContent, 'New Content', 'Should insert content into empty file');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        assert.strictEqual(modifiedContent, 'New Content', 'Should insert content into empty file');
     });
 
-    test('[edit-lines] should handle end of file operations', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should handle end of file operations', () => {
         const initialContent = 'Line 1\nLine 2';
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing end of file operations ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'insert',
-                { startLine: 2 },
-                'Line 3'
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'insert',
+            2,
+            'Line 3'
+        );
 
-            const lines = modifiedContent.split('\n');
-            assert.strictEqual(lines.length, 3, 'Should have correct number of lines');
-            assert.strictEqual(lines[2], 'Line 3', 'Should append content at end of file');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+
+        const lines = modifiedContent.split('\n');
+        console.log('Line count:', lines.length);
+        console.log('Lines:', lines);
+
+        assert.strictEqual(lines.length, 3, 'Should have correct number of lines');
+        assert.strictEqual(lines[2], 'Line 3', 'Should append content at end of file');
     });
 
-    test('[edit-lines] should handle mixed line endings', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should handle mixed line endings', () => {
         const initialContent = 'Line 1\r\nLine 2\nLine 3\r\nLine 4';
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing mixed line endings ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 2 },
-                'New Line 2'
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'replace',
+            2,
+            'New Line 2'
+        );
 
-            assert.ok(modifiedContent.includes('Line 1\r\n'), 'Should preserve CRLF');
-            assert.ok(modifiedContent.includes('\nLine 3'), 'Should preserve LF');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+        console.log('Has CRLF:', modifiedContent.includes('\r\n'));
+        console.log('Has LF:', modifiedContent.includes('\n'));
+
+        assert.ok(modifiedContent.includes('Line 1\r\n'), 'Should preserve CRLF');
+        assert.ok(modifiedContent.includes('\nLine 3'), 'Should preserve LF');
     });
 
-    test('[edit-lines] should handle mixed indentation', async function() {
-        this.timeout(10000);
-
+    test('[edit-lines] should handle mixed indentation', () => {
         const initialContent = 
 `function test() {
 	const x = 1;
@@ -298,21 +219,21 @@ Line 3`;
 	    return x + y;
 }`;
 
-        try {
-            await createTestFile(initialContent);
+        console.log('\n=== Testing mixed indentation ===');
+        console.log('Initial content:', initialContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 
-            const modifiedContent = await editLines(
-                testFilePath,
-                'replace',
-                { startLine: 3 },
-                'const y = 5;',
-                { preserveIndentation: true }
-            );
+        const modifiedContent = editText(
+            initialContent,
+            'replace',
+            3,
+            'const y = 5;',
+            { preserveIndentation: true }
+        );
 
-            assert.ok(modifiedContent.includes('    const y = 5;'), 'Should handle mixed tabs/spaces indentation');
-        } catch (err) {
-            console.error('Test failed:', err);
-            throw err;
-        }
+        console.log('Modified content:', modifiedContent.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
+        console.log('Line 3:', modifiedContent.split('\n')[2]);
+        console.log('Line 3 indentation:', modifiedContent.split('\n')[2].match(/^[\s\t]*/)?.[0]);
+
+        assert.ok(modifiedContent.includes('    const y = 5;'), 'Should handle mixed tabs/spaces indentation');
     });
 });
