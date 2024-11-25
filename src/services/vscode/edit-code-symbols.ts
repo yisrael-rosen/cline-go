@@ -59,72 +59,86 @@ export async function getCodeSymbols(filePath: string): Promise<CodeSymbol[]> {
 
     // Find case statements
     const caseSymbols: CodeSymbol[] = [];
-    const caseRegex = /case\s+(['"]?\w+['"]?):/g;
-    let match;
-    
-    while ((match = caseRegex.exec(text)) !== null) {
-        const startPos = document.positionAt(match.index);
-        const caseValue = match[1];
-        
-        // Find the end of the case block
-        const caseStart = match.index;
-        let caseEnd = caseStart;
-        let depth = 0;
-        
-        // First find the end of the case statement line
-        let lineEnd = text.indexOf('\n', caseStart);
-        if (lineEnd === -1) lineEnd = text.length;
-        
-        // Then look for the next case/default or end of switch block
-        for (let i = lineEnd; i < text.length; i++) {
-            const currentChar = text[i];
-            const remainingText = text.slice(i);
+    const lines = text.split('\n');
+    let inSwitch = false;
+    let switchIndentLevel = 0;
+    let currentCaseStart: vscode.Position | null = null;
+    let currentCaseName = '';
+    let currentIndentLevel = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmedLine = line.trim();
+        const indentMatch = line.match(/^(\s*)/);
+        const currentLineIndent = indentMatch ? indentMatch[1].length : 0;
+
+        // Track switch statement context
+        if (trimmedLine.startsWith('switch')) {
+            inSwitch = true;
+            switchIndentLevel = currentLineIndent;
+            continue;
+        }
+
+        // Handle case statements
+        if (inSwitch) {
+            // Check for case or default statement
+            const caseMatch = trimmedLine.match(/^(?:\/\/[^\n]*\n\s*)?(?:\/\*[\s\S]*?\*\/\s*)?(?:case\s+(['"]?\w+['"]?)|default):/);
             
-            // Track nested structures
-            if (currentChar === '{') {
-                depth++;
-            } else if (currentChar === '}') {
-                depth--;
-                if (depth < 0 && !remainingText.trim().startsWith('else')) {
-                    // Found end of switch block
-                    caseEnd = i;
-                    break;
+            if (caseMatch) {
+                // If we were tracking a previous case, add it
+                if (currentCaseStart) {
+                    const caseEnd = new vscode.Position(i - 1, lines[i - 1].length);
+                    caseSymbols.push({
+                        kind: 'Case',
+                        name: currentCaseName,
+                        range: new vscode.Range(currentCaseStart, caseEnd)
+                    });
                 }
+
+                // Start tracking new case
+                const lineStartPos = document.positionAt(text.indexOf(line, document.offsetAt(new vscode.Position(i, 0))));
+                currentCaseStart = lineStartPos;
+                currentCaseName = caseMatch[1] ? `case ${caseMatch[1]}` : 'default';
+                currentIndentLevel = currentLineIndent;
+                continue;
             }
-            
-            // Only check for next case/default when we're at the same nesting level
-            if (depth === 0) {
-                // Check for next case or default
-                if (remainingText.match(/^\s*case\s|^\s*default:/)) {
-                    caseEnd = i;
-                    break;
+
+            // Check for end of switch block
+            if (currentLineIndent <= switchIndentLevel && trimmedLine.startsWith('}')) {
+                inSwitch = false;
+                if (currentCaseStart) {
+                    const caseEnd = new vscode.Position(i - 1, lines[i - 1].length);
+                    caseSymbols.push({
+                        kind: 'Case',
+                        name: currentCaseName,
+                        range: new vscode.Range(currentCaseStart, caseEnd)
+                    });
+                    currentCaseStart = null;
                 }
+                continue;
+            }
+
+            // Check for next case (to end current case)
+            if (currentCaseStart && currentLineIndent === currentIndentLevel && 
+                (trimmedLine.startsWith('case') || trimmedLine.startsWith('default'))) {
+                const caseEnd = new vscode.Position(i - 1, lines[i - 1].length);
+                caseSymbols.push({
+                    kind: 'Case',
+                    name: currentCaseName,
+                    range: new vscode.Range(currentCaseStart, caseEnd)
+                });
+                currentCaseStart = null;
             }
         }
-        
-        // If we didn't find a next case/default,
-        // use the end of the current nesting level
-        if (caseEnd === caseStart) {
-            depth = 0;
-            for (let i = caseStart; i < text.length; i++) {
-                if (text[i] === '{') {
-                    depth++;
-                } else if (text[i] === '}') {
-                    depth--;
-                    if (depth < 0) {
-                        caseEnd = i;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        const endPos = document.positionAt(caseEnd);
-        
+    }
+
+    // Add final case if we were tracking one
+    if (currentCaseStart) {
+        const caseEnd = new vscode.Position(lines.length - 1, lines[lines.length - 1].length);
         caseSymbols.push({
             kind: 'Case',
-            name: `case ${caseValue}`,
-            range: new vscode.Range(startPos, endPos)
+            name: currentCaseName,
+            range: new vscode.Range(currentCaseStart, caseEnd)
         });
     }
 
@@ -159,6 +173,40 @@ export async function canEditWithSymbols(filePath: string): Promise<boolean> {
 }
 
 /**
+ * Get the indentation level at a given position in the text
+ */
+function getIndentationAt(text: string, position: number): string {
+    const lineStart = text.lastIndexOf('\n', position) + 1;
+    const indentMatch = text.slice(lineStart, position).match(/^\s*/);
+    return indentMatch ? indentMatch[0] : '';
+}
+
+/**
+ * Get the base indentation level for a switch statement
+ */
+function getSwitchIndentation(text: string, caseStart: number): string {
+    const lineStart = text.lastIndexOf('\n', caseStart) + 1;
+    const switchStart = text.lastIndexOf('switch', caseStart);
+    if (switchStart === -1) return '';
+    
+    const switchLineStart = text.lastIndexOf('\n', switchStart) + 1;
+    const switchIndent = text.slice(switchLineStart, switchStart).match(/^\s*/);
+    return switchIndent ? switchIndent[0] + '    ' : '    ';
+}
+
+/**
+ * Find the next case or default statement after a given position
+ */
+function findNextCase(text: string, position: number): number {
+    const afterText = text.slice(position);
+    const nextCaseMatch = afterText.match(/^\s*(?:\/\/[^\n]*\n\s*)?(?:\/\*[\s\S]*?\*\/\s*)?(?:case\s|default:)/);
+    if (nextCaseMatch) {
+        return position + afterText.indexOf(nextCaseMatch[0]);
+    }
+    return -1;
+}
+
+/**
  * Edit code using document symbols for precise modifications
  */
 export async function editCodeWithSymbols(
@@ -189,7 +237,7 @@ export async function editCodeWithSymbols(
                 return s.kind === 'Method';
             } else if (symbol === 'TestInterface') {
                 return s.kind === 'Interface';
-            } else if (symbol.startsWith('case ')) {
+            } else if (symbol.startsWith('case ') || symbol === 'default') {
                 return s.kind === 'Case';
             }
             return true;
@@ -205,20 +253,43 @@ export async function editCodeWithSymbols(
         if (editType === 'delete') {
             // For case statements, preserve switch block structure
             if (symbolMatch.kind === 'Case') {
-                // Find the next non-whitespace content
-                let nextContentMatch = modifiedText.slice(endOffset).match(/\S/);
-                if (nextContentMatch && typeof nextContentMatch.index === 'number') {
-                    endOffset += nextContentMatch.index;
+                // Find the next case statement
+                const nextCasePos = findNextCase(text, endOffset);
+                if (nextCasePos !== -1) {
+                    // If there's another case after, remove up to but not including it
+                    endOffset = nextCasePos;
+                } else {
+                    // If this is the last case, remove trailing whitespace
+                    const afterContent = text.slice(endOffset);
+                    const trailingWhitespace = afterContent.match(/^\s*/);
+                    if (trailingWhitespace && trailingWhitespace[0]) {
+                        endOffset += trailingWhitespace[0].length;
+                    }
                 }
 
                 // Preserve indentation
-                let prevNewline = modifiedText.lastIndexOf('\n', startOffset);
-                if (prevNewline !== -1) {
-                    startOffset = prevNewline + 1;
-                }
-            }
+                const indentation = getIndentationAt(text, startOffset);
+                startOffset -= indentation.length;
 
-            modifiedText = modifiedText.slice(0, startOffset) + modifiedText.slice(endOffset);
+                // Handle case with only one case statement
+                const remainingCases = symbols.filter(s => 
+                    s.kind === 'Case' && 
+                    s.name !== symbolMatch.name &&
+                    s.range.start.line >= symbolMatch.range.start.line - 5 &&
+                    s.range.end.line <= symbolMatch.range.end.line + 5
+                );
+
+                if (remainingCases.length === 0) {
+                    // If this is the only case, keep the default case
+                    modifiedText = modifiedText.slice(0, startOffset) + 
+                        '        default:\n            return \'Unknown action\';\n' +
+                        modifiedText.slice(endOffset);
+                } else {
+                    modifiedText = modifiedText.slice(0, startOffset) + modifiedText.slice(endOffset);
+                }
+            } else {
+                modifiedText = modifiedText.slice(0, startOffset) + modifiedText.slice(endOffset);
+            }
 
             if (symbolMatch.kind === 'Method' && symbolMatch.name === 'initialize') {
                 const constructorCallRegex = new RegExp(`\\s*this\\.${symbolMatch.name}\\(\\);\\s*`);
@@ -227,17 +298,18 @@ export async function editCodeWithSymbols(
         } else if (editType === 'replace' && content) {
             // For case statements, preserve indentation and structure
             if (symbolMatch.kind === 'Case') {
-                const lineStart = modifiedText.lastIndexOf('\n', startOffset) + 1;
-                const indentation = modifiedText.slice(lineStart, startOffset).match(/^\s*/)?.[0] || '';
+                const baseIndent = getSwitchIndentation(text, startOffset);
+                const caseIndent = getIndentationAt(text, startOffset);
                 
                 // Ensure proper indentation for multi-line content
                 content = content.split('\n').map((line, i) => {
-                    if (i === 0) return line; // First line keeps original indentation
-                    return indentation + line;
+                    if (i === 0) return caseIndent + line.trimStart(); // Case line uses case indentation
+                    return caseIndent + '    ' + line.trimStart(); // Content uses extra indent
                 }).join('\n');
 
                 // Ensure proper spacing between cases
-                if (!content.endsWith('\n')) {
+                const nextCasePos = findNextCase(text, endOffset);
+                if (nextCasePos === -1 && !content.endsWith('\n')) {
                     content += '\n';
                 }
             }
@@ -259,7 +331,7 @@ export async function editCodeWithSymbols(
 
             const symbolMatch = matchingSymbols.find(s => 
                 (s.kind === 'Method') || 
-                (s.kind === 'Case' && symbol.startsWith('case '))
+                (s.kind === 'Case' && (symbol.startsWith('case ') || symbol === 'default'))
             ) || matchingSymbols[0];
 
             const insertPos = position === 'before' ? 
@@ -268,11 +340,16 @@ export async function editCodeWithSymbols(
 
             // For case statements, preserve indentation and structure
             if (symbolMatch.kind === 'Case') {
-                const lineStart = modifiedText.lastIndexOf('\n', insertPos) + 1;
-                const indentation = modifiedText.slice(lineStart, symbolMatch.range.start.character).match(/^\s*/)?.[0] || '';
+                const baseIndent = getSwitchIndentation(text, insertPos);
+                const caseIndent = getIndentationAt(text, insertPos);
                 
                 // Ensure proper indentation and spacing
-                content = content.split('\n').map(line => indentation + line).join('\n');
+                content = content.split('\n').map((line, i) => {
+                    if (i === 0) return caseIndent + line.trimStart(); // Case line uses case indentation
+                    return caseIndent + '    ' + line.trimStart(); // Content uses extra indent
+                }).join('\n');
+
+                // Add newlines for proper spacing
                 if (!content.startsWith('\n')) {
                     content = '\n' + content;
                 }

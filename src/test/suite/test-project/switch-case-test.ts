@@ -56,12 +56,10 @@ export function handleComplexCase(input: unknown): string {
         /* This is a complex case
            with multiple lines
            of comments */
-                case 'string':
-                    return 'Modified string case';
-        case 'newCase':
-            return 'New case added';
+        case 'string':
+            return 'String input';
 
-
+        // Case with inline comment and multiple statements
         case 'number': { // Handle numeric input
             let result = '';
             const numInput = input as number;

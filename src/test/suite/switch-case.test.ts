@@ -7,29 +7,64 @@ suite('Switch Case Edit Test Suite', () => {
     const projectRoot = path.resolve(__dirname, '..', '..', '..', 'src', 'test', 'suite');
     const projectPath = path.join(projectRoot, 'test-project');
     const switchCaseTestPath = path.join(projectPath, 'switch-case-test.ts');
+    let originalContent: string;
+    let testFileUri: vscode.Uri;
 
-    async function initializeTypeScript(filePath: string): Promise<void> {
-        const document = await vscode.workspace.openTextDocument(filePath);
-        await vscode.window.showTextDocument(document);
-        await new Promise(r => setTimeout(r, 3000)); // Wait for TypeScript initialization
+    // Create an in-memory document for testing
+    async function createTestDocument(content: string): Promise<vscode.Uri> {
+        const uri = vscode.Uri.file(path.join(projectPath, 'test-memory.ts'));
+        const edit = new vscode.WorkspaceEdit();
+        edit.createFile(uri, { ignoreIfExists: true });
+        edit.insert(uri, new vscode.Position(0, 0), content);
+        await vscode.workspace.applyEdit(edit);
+        await new Promise(r => setTimeout(r, 1000)); // Wait for VS Code to process
+        return uri;
     }
 
-    async function updateFileAndRefresh(filePath: string, content: string): Promise<void> {
-        await vscode.workspace.fs.writeFile(
-            vscode.Uri.file(filePath),
-            Buffer.from(content)
+    // Update in-memory document content
+    async function updateDocument(uri: vscode.Uri, content: string): Promise<void> {
+        const edit = new vscode.WorkspaceEdit();
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const fullRange = new vscode.Range(
+            doc.positionAt(0),
+            doc.positionAt(doc.getText().length)
         );
-        // Wait for file system and language server to update
-        await new Promise(r => setTimeout(r, 1000));
-        await initializeTypeScript(filePath);
+        edit.replace(uri, fullRange, content);
+        await vscode.workspace.applyEdit(edit);
+        await new Promise(r => setTimeout(r, 1000)); // Wait for VS Code to process
     }
+
+    suiteSetup(async () => {
+        // Store original content
+        originalContent = await vscode.workspace.openTextDocument(switchCaseTestPath)
+            .then(doc => doc.getText());
+        
+        // Create test file URI
+        testFileUri = vscode.Uri.file(path.join(projectPath, 'test-memory.ts'));
+    });
+
+    suiteTeardown(async () => {
+        // Restore original content
+        await vscode.workspace.fs.writeFile(
+            vscode.Uri.file(switchCaseTestPath),
+            Buffer.from(originalContent)
+        );
+
+        // Delete test file if it exists
+        try {
+            await vscode.workspace.fs.delete(testFileUri);
+        } catch (err) {
+            // Ignore if file doesn't exist
+        }
+    });
 
     test('should handle empty cases with fallthrough', async function() {
         this.timeout(10000);
 
         try {
-            await initializeTypeScript(switchCaseTestPath);
-            const symbols = await getCodeSymbols(switchCaseTestPath);
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            const symbols = await getCodeSymbols(uri.fsPath);
             
             // Verify empty cases are found
             const symbolNames = symbols.map(s => s.name);
@@ -38,12 +73,15 @@ suite('Switch Case Edit Test Suite', () => {
             assert.ok(symbolNames.includes('case 3'), 'Should find empty case 3');
 
             // Delete middle empty case
-            const beforeContent = await vscode.workspace.openTextDocument(switchCaseTestPath).then(doc => doc.getText());
+            const beforeContent = await vscode.workspace.openTextDocument(uri).then(doc => doc.getText());
             const modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'delete',
                 'case 2'
             );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
             
             // Verify the case was deleted
             assert.ok(beforeContent.includes('case 2:'), 'Case should exist before deletion');
@@ -61,11 +99,12 @@ suite('Switch Case Edit Test Suite', () => {
         this.timeout(10000);
 
         try {
-            await initializeTypeScript(switchCaseTestPath);
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
             
             // Replace case with block statement
             const modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'replace',
                 "case 'boolean'",
                 `        case 'boolean': {
@@ -75,6 +114,9 @@ suite('Switch Case Edit Test Suite', () => {
             return \`Boolean value: \${value}\`;
         }`
             );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
             
             assert.ok(
                 modifiedContent.includes('const value = input.toString()'),
@@ -98,11 +140,12 @@ suite('Switch Case Edit Test Suite', () => {
         this.timeout(10000);
 
         try {
-            await initializeTypeScript(switchCaseTestPath);
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
             
             // Insert new empty cases
             const modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'insert',
                 'case 9',
                 `
@@ -111,6 +154,9 @@ suite('Switch Case Edit Test Suite', () => {
         case 12:`,
                 'after'
             );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
             
             // Verify the sequence
             const lines = modifiedContent.split('\n');
@@ -142,16 +188,20 @@ suite('Switch Case Edit Test Suite', () => {
         this.timeout(10000);
 
         try {
-            await initializeTypeScript(switchCaseTestPath);
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
             
             // Replace case with escaped characters
             const modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'replace',
                 "case 'boolean'",
                 `        case 'boolean':
             return 'Boolean: \\"' + input.toString() + '\\"\\n\\t' + '\\u{1F600}';`
             );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
             
             assert.ok(
                 modifiedContent.includes('\\"'),
@@ -175,28 +225,29 @@ suite('Switch Case Edit Test Suite', () => {
         this.timeout(15000);
 
         try {
-            await initializeTypeScript(switchCaseTestPath);
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
             
             // First operation: Replace a case
             let modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'replace',
                 "case 'string'",
                 `        case 'string':
             return 'Modified string case';`
             );
             
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
             assert.ok(
                 modifiedContent.includes('Modified string case'),
                 'First operation should modify case content'
             );
 
-            // Update file and refresh symbols
-            await updateFileAndRefresh(switchCaseTestPath, modifiedContent);
-
             // Second operation: Insert a new case
             modifiedContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+                uri.fsPath,
                 'insert',
                 "case 'string'",
                 `\n        case 'newCase':
@@ -204,27 +255,30 @@ suite('Switch Case Edit Test Suite', () => {
                 'after'
             );
             
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
             assert.ok(
                 modifiedContent.includes("case 'newCase'"),
                 'Second operation should add new case'
             );
 
-            // Update file and refresh symbols
-            await updateFileAndRefresh(switchCaseTestPath, modifiedContent);
-
             // Third operation: Delete the newly added case
-            const finalContent = await editCodeWithSymbols(
-                switchCaseTestPath,
+            modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
                 'delete',
                 "case 'newCase'"
             );
             
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
             assert.ok(
-                !finalContent.includes("case 'newCase'"),
+                !modifiedContent.includes("case 'newCase'"),
                 'Third operation should delete the case'
             );
             assert.ok(
-                !finalContent.includes('New case added'),
+                !modifiedContent.includes('New case added'),
                 'Case content should be deleted'
             );
         } catch (err) {
@@ -233,44 +287,211 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    // Previous tests remain unchanged...
     test('should verify file can be edited with symbols', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            const canEdit = await canEditWithSymbols(uri.fsPath);
+            assert.ok(canEdit, 'File should be editable with symbols');
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should get case statements as symbols including nested cases', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            const symbols = await getCodeSymbols(uri.fsPath);
+            const caseSymbols = symbols.filter(s => s.kind === 'Case');
+            
+            assert.ok(caseSymbols.length > 0, 'Should find case statements');
+            assert.ok(
+                caseSymbols.some(s => s.name === "case 'user'"),
+                'Should find outer case'
+            );
+            assert.ok(
+                caseSymbols.some(s => s.name === "case 'create'"),
+                'Should find nested case'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should replace nested case statement content', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            const modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
+                'replace',
+                "case 'create'",
+                `                case 'create':
+                    return 'Modified nested case';`
+            );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
+            assert.ok(
+                modifiedContent.includes('Modified nested case'),
+                'Nested case content should be replaced'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should handle default case modifications', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            const modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
+                'replace',
+                'default',
+                `        default:
+            return 'Modified default case';`
+            );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
+            assert.ok(
+                modifiedContent.includes('Modified default case'),
+                'Default case content should be replaced'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should insert new case statement', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            const modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
+                'insert',
+                "case 'string'",
+                `        case 'newCase':
+            return 'New case added';`,
+                'after'
+            );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
+            assert.ok(
+                modifiedContent.includes("case 'newCase'"),
+                'New case should be inserted'
+            );
+            assert.ok(
+                modifiedContent.includes('New case added'),
+                'New case content should be inserted'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should delete a case statement', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            const modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
+                'delete',
+                "case 'string'"
+            );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
+            assert.ok(
+                !modifiedContent.includes("case 'string'"),
+                'Case should be deleted'
+            );
+            assert.ok(
+                !modifiedContent.includes('String input'),
+                'Case content should be deleted'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should handle invalid symbol operations', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            await assert.rejects(
+                () => editCodeWithSymbols(
+                    uri.fsPath,
+                    'replace',
+                    'nonexistent',
+                    'content'
+                ),
+                /Symbol 'nonexistent' not found/,
+                'Should reject invalid symbol'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 
     test('should preserve whitespace and indentation', async function() {
         this.timeout(10000);
-        // ... existing test implementation ...
+        try {
+            // Create in-memory document
+            const uri = await createTestDocument(originalContent);
+            
+            const modifiedContent = await editCodeWithSymbols(
+                uri.fsPath,
+                'replace',
+                "case 'string'",
+                `        case 'string':
+            return 'Properly indented';`
+            );
+            
+            // Update in-memory document
+            await updateDocument(uri, modifiedContent);
+            
+            const lines = modifiedContent.split('\n');
+            const caseLine = lines.find(l => l.includes("case 'string'"));
+            const returnLine = lines.find(l => l.includes('Properly indented'));
+            
+            assert.ok(
+                caseLine && caseLine.startsWith('        '),
+                'Case statement should preserve indentation'
+            );
+            assert.ok(
+                returnLine && returnLine.startsWith('            '),
+                'Return statement should be properly indented'
+            );
+        } catch (err) {
+            console.error('Test failed:', err);
+            throw err;
+        }
     });
 });
