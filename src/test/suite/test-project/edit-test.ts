@@ -7,18 +7,10 @@ export class TestClass {
     private items: TestInterface[] = [];
 
     constructor() {
-        this.initialize();
-    }
-
-    private initialize(): void {
-        this.items.push({
-            id: 1,
-            name: 'test'
-        });
-    }
+}
 
     public getItems(): TestInterface[] {
-        return [...this.items];
+        return this.items.filter(item => item.id > 0);
     }
 
     public addItem(item: TestInterface): void {

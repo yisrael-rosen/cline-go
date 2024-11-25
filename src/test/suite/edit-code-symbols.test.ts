@@ -30,6 +30,16 @@ suite('Edit Code Symbols Test Suite', () => {
         });
     }
 
+    async function updateFile(filePath: string, content: string): Promise<void> {
+        await vscode.workspace.fs.writeFile(
+            vscode.Uri.file(filePath),
+            Buffer.from(content)
+        );
+        // Wait for file system and language server to update
+        await new Promise(r => setTimeout(r, 1000));
+        await initializeTypeScript(filePath);
+    }
+
     test('should get code symbols from file', async function() {
         this.timeout(10000);
 
@@ -154,19 +164,22 @@ suite('Edit Code Symbols Test Suite', () => {
     });
 
     test('should handle multiple operations sequentially', async function() {
-        this.timeout(10000);
+        this.timeout(15000);
 
         try {
             await initializeTypeScript(editTestPath);
 
-            // Delete first
+            // First operation: Delete initialize method
             let modifiedContent = await editCodeWithSymbols(
                 editTestPath,
                 'delete',
                 'initialize'
             );
 
-            // Then replace
+            // Update file and refresh
+            await updateFile(editTestPath, modifiedContent);
+
+            // Second operation: Replace getItems method
             modifiedContent = await editCodeWithSymbols(
                 editTestPath,
                 'replace',
@@ -176,7 +189,10 @@ suite('Edit Code Symbols Test Suite', () => {
     }`
             );
 
-            // Finally insert
+            // Update file and refresh
+            await updateFile(editTestPath, modifiedContent);
+
+            // Third operation: Insert new method
             modifiedContent = await editCodeWithSymbols(
                 editTestPath,
                 'insert',
@@ -186,7 +202,8 @@ suite('Edit Code Symbols Test Suite', () => {
     }`,
                 'after'
             );
-            
+
+            // Verify final state
             assert.ok(!modifiedContent.includes('initialize'), 'Method should be deleted');
             assert.ok(modifiedContent.includes('filter(item => item.id > 0)'), 'Method should be replaced');
             assert.ok(modifiedContent.includes('getItemById'), 'New method should be inserted');

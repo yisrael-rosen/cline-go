@@ -23,3 +23,94 @@ export function handleStatus(status: number): string {
             return 'Unknown Status';
     }
 }
+
+export function processNestedAction(action: string, subAction: string): string {
+    switch (action) {
+        case 'user':
+            switch (subAction) {
+                case 'create':
+                    return 'Creating new user';
+                case 'delete':
+                    return 'Deleting user';
+                default:
+                    return 'Unknown user action';
+            }
+        case 'post':
+            switch (subAction) {
+                case 'create':
+                    return 'Creating new post';
+                case 'delete':
+                    return 'Deleting post';
+                default:
+                    return 'Unknown post action';
+            }
+        default:
+            return 'Unknown action type';
+    }
+}
+
+export function handleComplexCase(input: any): string {
+    switch (typeof input) {
+        // Case with multi-line comment
+        /* This is a complex case
+           with multiple lines
+           of comments */
+        case 'string':
+            if (input.length > 0) {
+                return 'Non-empty string';
+            }
+            return 'Empty string';
+
+        // Case with inline comment and multiple statements
+        case 'number': // Handle numeric input
+            let result = '';
+            if (input > 0) {
+                result = 'Positive';
+            } else if (input < 0) {
+                result = 'Negative';
+            } else {
+                result = 'Zero';
+            }
+            return result;
+
+        // Empty case with fallthrough
+        case 'undefined':
+        case 'symbol':
+            return 'Special type';
+
+        // Case with template literal and expression
+        case 'object':
+            return `Object: ${input === null ? 'null' : 'instance'}`;
+
+        // Case with escaped characters and quotes
+        case 'boolean':
+            return 'Boolean: "' + input.toString() + '"\\n';
+
+        default: {
+            // Default case with block
+            const message = 'Unknown type';
+            console.log(message);
+            return message;
+        }
+    }
+}
+
+export function handleEmptyCase(value: number): string {
+    switch (value) {
+        case 1:
+        case 2:
+        case 3:
+            return 'Low number';
+        case 4:
+        case 5:
+        case 6:
+            return 'Medium number';
+        case 7:
+        case 8:
+        case 9:
+            return 'High number';
+        default:
+            return 'Out of range';
+            return 'Out of range';
+    }
+}
