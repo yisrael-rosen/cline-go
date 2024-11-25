@@ -55,9 +55,10 @@ export function handleComplexCase(input: any): string {
         /* This is a complex case
            with multiple lines
            of comments */
-        case 'string':
-            if (input.length > 0) {
-                return 'Non-empty string';
+                        case 'string':
+                    return 'Modified string case';
+        case 'newCase':
+            return 'New case added';
             }
             return 'Empty string';
 
@@ -110,7 +111,6 @@ export function handleEmptyCase(value: number): string {
         case 9:
             return 'High number';
         default:
-            return 'Out of range';
             return 'Out of range';
     }
 }
