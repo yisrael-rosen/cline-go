@@ -1,0 +1,195 @@
+name: Fault Injection Testing
+
+on:
+  schedule:
+    - cron: '0 0 * * 4'  # Run every Thursday
+  workflow_dispatch:
+    inputs:
+      fault_rate:
+        description: 'Fault injection rate (0-100)'
+        required: true
+        default: '10'
+
+jobs:
+  parser-faults:
+    name: Parser Fault Injection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Test Invalid Syntax
+        run: |
+          go test -v -run=TestInvalidSyntax \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Malformed AST
+        run: |
+          go test -v -run=TestMalformedAST \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Partial Files
+        run: |
+          go test -v -run=TestPartialFiles \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+  io-faults:
+    name: I/O Fault Injection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Test File Access Errors
+        run: |
+          go test -v -run=TestFileAccessErrors \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Permission Errors
+        run: |
+          go test -v -run=TestPermissionErrors \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Disk Space Errors
+        run: |
+          go test -v -run=TestDiskSpaceErrors \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+  memory-faults:
+    name: Memory Fault Injection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Test Allocation Failures
+        run: |
+          go test -v -run=TestAllocationFailures \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test GC Pressure
+        run: |
+          go test -v -run=TestGCPressure \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Memory Fragmentation
+        run: |
+          go test -v -run=TestMemoryFragmentation \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+  concurrency-faults:
+    name: Concurrency Fault Injection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Test Race Conditions
+        run: |
+          go test -v -race -run=TestRaceConditions \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Deadlocks
+        run: |
+          go test -v -run=TestDeadlocks \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+      - name: Test Channel Errors
+        run: |
+          go test -v -run=TestChannelErrors \
+            -fault-rate=${{ github.event.inputs.fault_rate || 10 }} \
+            ./parser/...
+
+  error-handling:
+    name: Error Handling Verification
+    needs: [parser-faults, io-faults, memory-faults, concurrency-faults]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Verify Error Types
+        run: |
+          go test -v -run=TestErrorTypes ./parser/...
+
+      - name: Verify Error Recovery
+        run: |
+          go test -v -run=TestErrorRecovery ./parser/...
+
+      - name: Verify Error Propagation
+        run: |
+          go test -v -run=TestErrorPropagation ./parser/...
+
+  report:
+    name: Generate Fault Injection Report
+    needs: error-handling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect Test Results
+        run: |
+          echo "# Fault Injection Test Results" > report.md
+          echo "## Configuration" >> report.md
+          echo "- Fault Rate: ${{ github.event.inputs.fault_rate || 10 }}%" >> report.md
+          
+          echo "## Parser Faults" >> report.md
+          go tool test2json ./parser/... | jq -r 'select(.Action=="fail")' >> report.md
+          
+          echo "## I/O Faults" >> report.md
+          go tool test2json ./parser/... | jq -r 'select(.Action=="fail")' >> report.md
+          
+          echo "## Memory Faults" >> report.md
+          go tool test2json ./parser/... | jq -r 'select(.Action=="fail")' >> report.md
+          
+          echo "## Concurrency Faults" >> report.md
+          go tool test2json ./parser/... | jq -r 'select(.Action=="fail")' >> report.md
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: fault-injection-report
+          path: report.md
+
+      - name: Post Results
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });

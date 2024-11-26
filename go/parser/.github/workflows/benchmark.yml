@@ -1,0 +1,201 @@
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Run benchmarks
+      - name: Run Benchmarks
+        run: |
+          go test -bench=. -benchmem ./parser/... > benchmark.txt
+
+      # Compare with previous results
+      - name: Download Previous Benchmark
+        uses: actions/download-artifact@v3
+        with:
+          name: benchmark-data
+          path: .benchmarks
+        continue-on-error: true
+
+      - name: Compare Benchmarks
+        if: success()
+        run: |
+          if [ -f .benchmarks/benchmark.txt ]; then
+            go install golang.org/x/perf/cmd/benchstat@latest
+            benchstat .benchmarks/benchmark.txt benchmark.txt
+          fi
+
+      # Store benchmark results
+      - name: Store Benchmark Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-data
+          path: benchmark.txt
+          retention-days: 30
+
+  memory-profile:
+    name: Memory Usage Profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Run memory profiling
+      - name: Profile Memory Usage
+        run: |
+          go test -memprofile=mem.prof -memprofilerate=1 ./parser/...
+          go tool pprof -svg mem.prof > memory.svg
+
+      # Upload profile results
+      - name: Upload Memory Profile
+        uses: actions/upload-artifact@v3
+        with:
+          name: memory-profile
+          path: |
+            mem.prof
+            memory.svg
+
+  cpu-profile:
+    name: CPU Usage Profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Run CPU profiling
+      - name: Profile CPU Usage
+        run: |
+          go test -cpuprofile=cpu.prof ./parser/...
+          go tool pprof -svg cpu.prof > cpu.svg
+
+      # Upload profile results
+      - name: Upload CPU Profile
+        uses: actions/upload-artifact@v3
+        with:
+          name: cpu-profile
+          path: |
+            cpu.prof
+            cpu.svg
+
+  large-file-test:
+    name: Large File Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Generate large test file
+      - name: Generate Large Test File
+        run: |
+          mkdir -p testdata
+          cat > testdata/large.go << 'EOL'
+          package test
+          
+          // Generate 1000 functions
+          $(for i in {1..1000}; do
+            echo "func Process${i}(data []byte) error { return nil }"
+          done)
+          EOL
+
+      # Test performance with large file
+      - name: Test Large File Performance
+        run: |
+          go test -v -run=TestLargeFile -timeout=5m ./parser/...
+
+      # Upload test results
+      - name: Upload Large File Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: large-file-results
+          path: testdata/large.go
+
+  concurrent-edits:
+    name: Concurrent Editing Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Test concurrent editing
+      - name: Test Concurrent Edits
+        run: |
+          go test -v -run=TestConcurrentEdits -timeout=5m ./parser/...
+
+  report:
+    name: Generate Performance Report
+    needs: [benchmark, memory-profile, cpu-profile, large-file-test, concurrent-edits]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # Download all artifacts
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      # Generate report
+      - name: Generate Report
+        run: |
+          echo "# Performance Report" > report.md
+          echo "## Benchmark Results" >> report.md
+          cat artifacts/benchmark-data/benchmark.txt >> report.md
+          echo "## Memory Profile" >> report.md
+          echo "![Memory Profile](artifacts/memory-profile/memory.svg)" >> report.md
+          echo "## CPU Profile" >> report.md
+          echo "![CPU Profile](artifacts/cpu-profile/cpu.svg)" >> report.md
+
+      # Upload report
+      - name: Upload Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-report
+          path: report.md
+
+      # Post results as comment if PR
+      - name: Post Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });

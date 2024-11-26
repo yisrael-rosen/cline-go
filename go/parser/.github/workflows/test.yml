@@ -1,0 +1,265 @@
+name: Test Code Editing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run Tests
+        run: go test -v ./parser/...
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: coverage.out
+
+  integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Test adding context
+      - name: Test Context Addition
+        run: |
+          cat > test.go << 'EOL'
+          package test
+          
+          func Process(data []byte) error {
+              return nil
+          }
+          EOL
+          
+          go run cmd/goparser/main.go edit \
+            --file test.go \
+            --symbol Process \
+            --add-context
+          
+          # Verify context was added
+          if ! grep -q "context.Context" test.go; then
+            echo "Context parameter not added"
+            exit 1
+          fi
+
+      # Test adding field tags
+      - name: Test Field Tags
+        run: |
+          cat > test.go << 'EOL'
+          package test
+          
+          type User struct {
+              ID   int
+              Name string
+          }
+          EOL
+          
+          go run cmd/goparser/main.go edit \
+            --file test.go \
+            --symbol User \
+            --add-tags json,db
+          
+          # Verify tags were added
+          if ! grep -q "\`json:\"id\" db:\"id\"\`" test.go; then
+            echo "Field tags not added"
+            exit 1
+          fi
+
+      # Test implementing interface
+      - name: Test Interface Implementation
+        run: |
+          cat > test.go << 'EOL'
+          package test
+          
+          type Handler interface {
+              Handle(context.Context) error
+          }
+          
+          type Service struct{}
+          EOL
+          
+          go run cmd/goparser/main.go edit \
+            --file test.go \
+            --symbol Service \
+            --implement Handler
+          
+          # Verify implementation was added
+          if ! grep -q "func (s \*Service) Handle(ctx context.Context) error {" test.go; then
+            echo "Interface not implemented"
+            exit 1
+          fi
+
+  e2e-tests:
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Test complete workflow
+      - name: Test Complete Workflow
+        run: |
+          # Create test project
+          mkdir -p test-project
+          cd test-project
+          go mod init test
+          
+          # Create initial files
+          cat > service.go << 'EOL'
+          package test
+          
+          type Service struct {
+              name string
+          }
+          
+          func (s *Service) Process(data []byte) error {
+              return nil
+          }
+          EOL
+          
+          # Run series of edits
+          go run ../cmd/goparser/main.go edit \
+            --file service.go \
+            --symbol Process \
+            --add-context
+          
+          go run ../cmd/goparser/main.go edit \
+            --file service.go \
+            --symbol Service \
+            --add-tags json
+          
+          # Verify results
+          if ! grep -q "context.Context" service.go; then
+            echo "Context parameter not added"
+            exit 1
+          fi
+          
+          if ! grep -q "\`json:\"name\"\`" service.go; then
+            echo "Field tags not added"
+            exit 1
+          fi
+
+  vscode-tests:
+    name: Run VSCode Extension Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: |
+          cd examples/vscode-integration
+          npm install
+
+      - name: Run Tests
+        run: |
+          cd examples/vscode-integration
+          npm test
+
+      - name: Package Extension
+        if: success()
+        run: |
+          cd examples/vscode-integration
+          npm run package
+
+      - name: Upload Extension
+        uses: actions/upload-artifact@v3
+        with:
+          name: vscode-extension
+          path: examples/vscode-integration/*.vsix
+
+  verify-examples:
+    name: Verify Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      # Test each example
+      - name: Test Examples
+        run: |
+          for dir in examples/*/; do
+            if [ -f "$dir/go.mod" ]; then
+              echo "Testing $dir"
+              cd "$dir"
+              go test -v ./...
+              cd -
+            fi
+          done
+
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Run TypeScript Lint
+        run: |
+          cd examples/vscode-integration
+          npm install
+          npm run lint
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+      - name: Run npm audit
+        run: |
+          cd examples/vscode-integration
+          npm audit
+
+      - name: Upload Security Report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security.txt
