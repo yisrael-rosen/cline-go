@@ -216,6 +216,164 @@ func Valid() {}`,
 				}
 			},
 		},
+		{
+			name: "replace function with docs",
+			initial: `package test
+// updateExpiredSubscriptions updates the status of expired subscriptions
+func (sh *SubscriptionHandler) updateExpiredSubscriptions(ctx context.Context) error {
+	return nil
+}`,
+			req: EditRequest{
+				Symbol: "updateExpiredSubscriptions",
+				Content: `// updateExpiredSubscriptions updates the status of expired subscriptions
+func (sh *SubscriptionHandler) updateExpiredSubscriptions(ctx context.Context) error {
+	// First, get the subscriptions that will be expired
+	rows, err := sh.db.QueryContext(ctx, ` + "`" + `
+		SELECT id, status, payment_status, expiration_date, renewal_count
+		FROM subscriptions 
+		WHERE status IN (?, ?) 
+		AND expiration_date < NOW()` + "`" + `,
+		StatusActive, StatusPending)
+	if err != nil {
+		return fmt.Errorf("failed to query expiring subscriptions: %w", err)
+	}
+	defer rows.Close()
+
+	// Process each subscription in its own transaction
+	var expiredCount int64
+	for rows.Next() {
+		var sub Subscription
+		err := rows.Scan(&sub.ID, &sub.Status, &sub.PaymentStatus, &sub.ExpirationDate, &sub.RenewalCount)
+		if err != nil {
+			return fmt.Errorf("failed to scan subscription: %w", err)
+		}
+
+		// Start a new transaction for this subscription
+		tx, err := sh.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+
+		// Verify the subscription is still in a valid state for expiration
+		var currentStatus SubscriptionStatus
+		err = tx.QueryRowContext(ctx, ` + "`" + `
+			SELECT status 
+			FROM subscriptions 
+			WHERE id = ? 
+			AND status IN (?, ?) 
+			FOR UPDATE` + "`" + `,
+			sub.ID, StatusActive, StatusPending).Scan(&currentStatus)
+		if err != nil {
+			tx.Rollback()
+			if err == sql.ErrNoRows {
+				continue // Skip this subscription as it's no longer in a valid state
+			}
+			return fmt.Errorf("failed to verify subscription state: %w", err)
+		}
+
+		// Update the subscription status
+		result, err := tx.ExecContext(ctx, ` + "`" + `
+			UPDATE subscriptions 
+			SET status = ?, updated_at = NOW() 
+			WHERE id = ?` + "`" + `,
+			StatusExpired, sub.ID)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to update subscription %d: %w", sub.ID, err)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to get affected rows: %w", err)
+		}
+
+		if rowsAffected > 0 {
+			// Create details map directly from the subscription data
+			details := map[string]interface{}{
+				"payment_status":  sub.PaymentStatus,
+				"expiration_date": sub.ExpirationDate,
+				"renewal_count":   sub.RenewalCount,
+			}
+			detailsJSON, _ := json.Marshal(details)
+
+			// Insert expiration log
+			_, err = tx.ExecContext(ctx, ` + "`" + `
+				INSERT INTO subscription_logs 
+				(subscription_id, action, old_status, new_status, details)
+				VALUES (?, ?, ?, ?, ?)` + "`" + `,
+				sub.ID,
+				"expire",
+				currentStatus,
+				StatusExpired,
+				string(detailsJSON))
+			if err != nil {
+				tx.Rollback()
+				return fmt.Errorf("failed to log subscription change: %w", err)
+			}
+
+			expiredCount++
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit transaction: %w", err)
+		}
+	}
+	if err = rows.Err(); err != nil {
+		return fmt.Errorf("error iterating subscriptions: %w", err)
+	}
+
+	// Log the batch update if any subscriptions were expired
+	if expiredCount > 0 {
+		tx, err := sh.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+		if err != nil {
+			return fmt.Errorf("failed to begin batch log transaction: %w", err)
+		}
+		defer tx.Rollback()
+
+		details := map[string]interface{}{
+			"affected_count": expiredCount,
+			"update_time":    time.Now(),
+		}
+		detailsJSON, _ := json.Marshal(details)
+
+		_, err = tx.ExecContext(ctx, ` + "`" + `
+			INSERT INTO subscription_logs 
+			(action, details) 
+			VALUES (?, ?)` + "`" + `,
+			"daily_expiration_update", string(detailsJSON))
+		if err != nil {
+			return fmt.Errorf("failed to log batch update: %w", err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("failed to commit batch log transaction: %w", err)
+		}
+	}
+
+	return nil
+}`,
+			},
+			want: EditResult{
+				Success: true,
+			},
+			validate: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "// updateExpiredSubscriptions updates") {
+					t.Error("Function documentation not preserved")
+				}
+				if !strings.Contains(contentStr, "expiredCount int64") {
+					t.Error("Function implementation not updated")
+				}
+				if !strings.Contains(contentStr, "subscription_logs") {
+					t.Error("New SQL operations not added")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
