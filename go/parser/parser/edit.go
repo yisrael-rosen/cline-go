@@ -2,7 +2,6 @@ package parser
 
 import (
 	"bytes"
-	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -95,20 +94,6 @@ func Edit(req EditRequest) EditResult {
 	// Get the first declaration from the new content
 	newDecl := newFile.Decls[0]
 
-	fmt.Printf("Debug: New declaration type: %T\n", newDecl)
-	if genDecl, ok := newDecl.(*ast.GenDecl); ok {
-		for _, spec := range genDecl.Specs {
-			if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-				if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-					fmt.Printf("Debug: New struct fields:\n")
-					for _, field := range structType.Fields.List {
-						fmt.Printf("Debug: Field: %s, Tag: %#v\n", field.Names[0].Name, field.Tag)
-					}
-				}
-			}
-		}
-	}
-
 	// Replace or insert the node
 	switch req.Position {
 	case "before":
@@ -138,14 +123,6 @@ func Edit(req EditRequest) EditResult {
 			Success: false,
 			Error:   "Failed to write file: " + err.Error(),
 		}
-	}
-
-	// Debug: Read back the file content to verify
-	content, err := os.ReadFile(req.Path)
-	if err != nil {
-		fmt.Printf("Debug: Error reading back file: %v\n", err)
-	} else {
-		fmt.Printf("Debug: Actual file content after write:\n%s\n", string(content))
 	}
 
 	return EditResult{
@@ -218,8 +195,6 @@ func replaceInParent(parent, target, newNode ast.Node) {
 					if len(n.Specs) > 0 {
 						if newTypeSpec, ok := n.Specs[0].(*ast.TypeSpec); ok {
 							if oldTypeSpec, ok := spec.(*ast.TypeSpec); ok {
-								fmt.Printf("Debug: Replacing type spec %s\n", oldTypeSpec.Name)
-								// Keep the original name but replace the entire type spec
 								newTypeSpec.Name = oldTypeSpec.Name
 								p.Specs[i] = newTypeSpec
 							}
@@ -227,8 +202,6 @@ func replaceInParent(parent, target, newNode ast.Node) {
 					}
 				case *ast.TypeSpec:
 					if oldTypeSpec, ok := spec.(*ast.TypeSpec); ok {
-						fmt.Printf("Debug: Direct type spec replacement for %s\n", oldTypeSpec.Name)
-						// Keep the original name but replace the entire type spec
 						n.Name = oldTypeSpec.Name
 						p.Specs[i] = n
 					}

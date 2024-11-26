@@ -1,0 +1,15 @@
+{
+  "name": "go-parser",
+  "version": "1.0.0",
+  "description": "TypeScript wrapper for Go parser",
+  "main": "wrapper/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@types/node": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.0"
+  }
+}

@@ -33,20 +33,26 @@ export class GoParser {
     private binaryPath: string;
 
     constructor() {
+        // Use absolute path to the binary
         const platform = os.platform();
         const ext = platform === 'win32' ? '.exe' : '';
-        this.binaryPath = path.join(__dirname, '..', 'bin', `goparser${ext}`);
+        this.binaryPath = path.resolve(process.cwd(), 'dist', 'bin', 'goparser' + ext);
+        console.log('Initialized GoParser with binary path:', this.binaryPath);
     }
 
     /**
      * Parse a Go file to extract symbols
      */
     async parseFile(filePath: string): Promise<ParseResult> {
+        const absolutePath = path.resolve(process.cwd(), filePath);
+        console.log('Parsing file:', absolutePath);
+        
         const command = {
             operation: 'parse',
-            file: filePath
+            file: absolutePath
         };
 
+        console.log('Sending command:', JSON.stringify(command, null, 2));
         return this.runCommand(command) as Promise<ParseResult>;
     }
 
@@ -54,12 +60,22 @@ export class GoParser {
      * Modify a symbol in a Go file
      */
     async editSymbol(filePath: string, edit: EditRequest): Promise<EditResult> {
+        const absolutePath = path.resolve(process.cwd(), filePath);
+        console.log('Editing file:', absolutePath);
+        console.log('Edit request:', JSON.stringify(edit, null, 2));
+        
         const command = {
             operation: 'edit',
-            file: filePath,
-            edit
+            file: absolutePath,
+            edit: {
+                Path: absolutePath,
+                Symbol: edit.symbolName,
+                Content: edit.newContent,
+                Position: edit.editType === 'insert' ? 'after' : undefined
+            }
         };
 
+        console.log('Sending command:', JSON.stringify(command, null, 2));
         return this.runCommand(command) as Promise<EditResult>;
     }
 
@@ -68,33 +84,45 @@ export class GoParser {
      */
     private runCommand(command: any): Promise<ParseResult | EditResult> {
         return new Promise((resolve, reject) => {
-            const process = spawn(this.binaryPath, ['-input', '-']);
+            console.log('Running command with binary:', this.binaryPath);
+            console.log('Current working directory:', process.cwd());
+            
+            const childProcess = spawn(this.binaryPath, ['-input', '-']);
             let stdout = '';
             let stderr = '';
 
             // Send command to stdin
-            process.stdin.write(JSON.stringify(command));
-            process.stdin.end();
+            const input = JSON.stringify(command);
+            console.log('Writing to stdin:', input);
+            childProcess.stdin.write(input);
+            childProcess.stdin.end();
 
             // Collect stdout
-            process.stdout.on('data', (data) => {
-                stdout += data.toString();
+            childProcess.stdout.on('data', (data) => {
+                const chunk = data.toString();
+                console.log('Received stdout chunk:', chunk);
+                stdout += chunk;
             });
 
             // Collect stderr
-            process.stderr.on('data', (data) => {
-                stderr += data.toString();
+            childProcess.stderr.on('data', (data) => {
+                const chunk = data.toString();
+                console.log('Received stderr chunk:', chunk);
+                stderr += chunk;
             });
 
             // Handle process completion
-            process.on('close', (code) => {
+            childProcess.on('close', (code) => {
+                console.log('Process exited with code:', code);
                 if (code !== 0) {
                     reject(new Error(`Parser failed with code ${code}: ${stderr}`));
                     return;
                 }
 
                 try {
-                    const result = JSON.parse(stdout);
+                    console.log('Parsing JSON result:', stdout);
+                    const result = JSON.parse(stdout.replace(/([{,])\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":'));
+                    console.log('Parsed result:', JSON.stringify(result, null, 2));
                     resolve(result);
                 } catch (err) {
                     reject(new Error(`Failed to parse result: ${err}`));
@@ -102,26 +130,10 @@ export class GoParser {
             });
 
             // Handle process errors
-            process.on('error', (err) => {
+            childProcess.on('error', (err) => {
+                console.error('Process error:', err);
                 reject(new Error(`Failed to run parser: ${err}`));
             });
         });
     }
 }
-
-// Example usage:
-/*
-const parser = new GoParser();
-
-// Parse a file
-const symbols = await parser.parseFile('main.go');
-console.log('Symbols:', symbols);
-
-// Edit a symbol
-const result = await parser.editSymbol('main.go', {
-    symbolName: 'ProcessData',
-    editType: 'replace',
-    newContent: 'func ProcessData(data []byte) error { return nil }'
-});
-console.log('Edit result:', result);
-*/
