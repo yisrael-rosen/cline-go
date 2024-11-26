@@ -83,6 +83,23 @@ Your file content here
 <position>optional for insert operations</position>
 </edit_code_symbols>
 
+## edit_go_symbols
+Description: Request to edit Go code using symbol-based modifications. This tool allows for precise edits to specific symbols (functions, methods, types, etc.) in Go source code files. It uses a specialized Go parser to accurately locate and modify code elements while preserving the overall structure.
+Parameters:
+- path: (required) The path of the file to edit (relative to the current working directory c:/Users/ROSEN/dev/cline)
+- edit_type: (required) The type of edit operation ('replace' | 'insert' | 'delete')
+- symbol: (required for replace/delete) The name of the symbol to edit
+- content: (required for replace/insert) The new content to use
+Usage:
+<edit_go_symbols>
+<path>File path here</path>
+<edit_type>replace</edit_type>
+<symbol>processData</symbol>
+<content>
+Your Go code content here
+</content>
+</edit_go_symbols>
+
 ## get_code_symbols
 Description: Request to retrieve the structure of code symbols (functions, methods, classes, etc.) in a source code file. This tool is particularly useful before using edit_code_symbols to understand the available symbols that can be edited in a file. It uses VSCode's language services to accurately identify symbols.
 Parameters:
@@ -263,6 +280,11 @@ CAPABILITIES
         - Adding new methods to an existing class
         - Removing deprecated code elements
         - Any changes where you want to target specific symbols in the code
+    - edit_go_symbols: Use this tool specifically for Go code modifications. It provides specialized symbol-based editing for Go files, allowing you to:
+        - Modify function implementations while preserving Go-specific syntax and structure
+        - Add new methods to existing types
+        - Update struct definitions and interfaces
+        - Make precise changes to Go-specific code elements like receivers and package-level declarations
     - write_to_file: Use this tool when you need to:
         - Create new files
         - Make changes that affect an entire file

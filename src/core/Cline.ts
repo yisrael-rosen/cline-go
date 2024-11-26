@@ -22,6 +22,7 @@ import { findLastIndex } from "../shared/array"
 import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import { editCodeWithSymbols, canEditWithSymbols, getCodeSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
+import { GoParser, EditRequest } from "../../go/parser/wrapper"
 
 import {
 	BrowserAction,
@@ -886,6 +887,8 @@ export class Cline {
     						return `[${block.name} for '${block.params.path}']`
 						case "edit_code_symbols":
     						return `[${block.name} for '${block.params.path}']`
+						case "edit_go_symbols":
+    						return `[${block.name} for '${block.params.path}']`
 						case "find_references":
     						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
@@ -1029,6 +1032,151 @@ export class Cline {
 				}
 
 				switch (block.name) {
+					case "edit_go_symbols": {
+						const relPath: string | undefined = block.params.path
+						const editType: string | undefined = block.params.edit_type 
+						const symbol: string | undefined = block.params.symbol
+						let content: string | undefined = block.params.content
+						const sharedMessageProps: ClineSayTool = {
+							tool: "editedGoSymbols",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
+							symbol: removeClosingTag("symbol", symbol)
+						}
+					
+						try {
+							if (block.partial) {
+								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
+								break
+							}
+					
+							// Validate required parameters
+							if (!editType) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "edit_type") + 
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+							if (!relPath) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "path") + 
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+					
+							// Validate edit type
+							if (!['replace', 'insert', 'delete'].includes(editType)) {
+								pushToolResult(`Invalid edit type: ${editType}. Must be 'replace', 'insert', or 'delete'.`)
+								break
+							}
+					
+							// Validate required parameters based on operation type
+							if ((editType === 'replace' || editType === 'delete') && !symbol) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "symbol"))
+								break
+							}
+							if ((editType === 'replace' || editType === 'insert') && !content) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "content"))
+								break
+							}
+					
+							const absolutePath = path.resolve(cwd, relPath)
+							
+							// Verify file extension is .go
+							if (!absolutePath.endsWith('.go')) {
+								pushToolResult(`File '${relPath}' is not a Go file. This tool can only be used with .go files.`)
+								break
+							}
+					
+							try {
+								// Initialize Go parser
+								const goParser = new GoParser()
+					
+								// Get the document for diffing
+								const document = await vscode.workspace.openTextDocument(absolutePath)
+								const originalContent = document.getText()
+					
+								// Prepare edit request
+								const editRequest: EditRequest = {
+									symbolName: symbol || '',
+									editType: editType as 'replace' | 'insert' | 'delete',
+									newContent: content
+								}
+					
+								// Perform the edit
+								const result = await goParser.editSymbol(absolutePath, editRequest)
+								if (!result.success || !result.content) {
+									pushToolResult(`Failed to edit Go symbol: ${result.error || 'Unknown error'}`)
+									break
+								}
+					
+								// Show diff preview
+								this.diffViewProvider.editType = "modify"
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+								await this.diffViewProvider.update(result.content, true)
+								await delay(300) // wait for diff view to update
+								this.diffViewProvider.scrollToFirstDiff()
+								showOmissionWarning(this.diffViewProvider.originalContent || "", result.content)
+					
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									diff: formatResponse.createPrettyPatch(
+										relPath,
+										this.diffViewProvider.originalContent,
+										result.content
+									)
+								} satisfies ClineSayTool)
+					
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									await this.diffViewProvider.revertChanges()
+									break
+								}
+					
+								// Apply and save the changes
+								const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
+								this.didEditFile = true
+					
+								if (userEdits) {
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: "editedGoSymbols",
+											path: getReadablePath(cwd, relPath),
+											diff: userEdits,
+										} satisfies ClineSayTool)
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`
+									)
+								} else {
+									pushToolResult(
+										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`
+									)
+								}
+								await this.diffViewProvider.reset()
+								break
+							} catch (error) {
+								await handleError("editing go symbols", error)
+								await this.diffViewProvider.reset()
+								break
+							}
+						} catch (error) {
+							await handleError("editing go symbols", error)
+							await this.diffViewProvider.reset()
+							break
+						}
+					}
 					case "get_code_symbols": {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClineSayTool = {

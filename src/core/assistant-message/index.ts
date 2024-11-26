@@ -20,6 +20,7 @@ export const toolUseNames = [
 	"attempt_completion",
 	"find_references",
 	"edit_code_symbols",
+	"edit_go_symbols",
 	"get_code_symbols",
 ] as const
 
@@ -114,4 +115,7 @@ export interface GetCodeSymbols extends ToolUse {
 	name: "get_code_symbols"
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
-
+export interface EditGoSymbols extends ToolUse {
+	name: "edit_go_symbols"
+	params: Partial<Pick<Record<ToolParamName, string>, "path">>
+}

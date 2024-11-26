@@ -11,7 +11,7 @@ interface Symbol {
     children?: Symbol[];
 }
 
-interface EditRequest {
+export interface EditRequest {
     symbolName: string;
     editType: 'replace' | 'insert' | 'delete';
     newContent?: string;
