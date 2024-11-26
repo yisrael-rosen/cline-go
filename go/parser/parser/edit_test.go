@@ -25,12 +25,14 @@ func TestEdit(t *testing.T) {
 		{
 			name: "add context parameter",
 			initial: `package test
+// Process processes data without context
 func Process(data []byte) error {
 	return nil
 }`,
 			req: EditRequest{
 				Symbol: "Process",
-				Content: `func Process(ctx context.Context, data []byte) error {
+				Content: `// Process processes data with context for better control
+func Process(ctx context.Context, data []byte) error {
 	return nil
 }`,
 			},
@@ -42,21 +44,30 @@ func Process(data []byte) error {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !strings.Contains(string(content), "ctx context.Context") {
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "ctx context.Context") {
 					t.Error("Context parameter not added")
+				}
+				if !strings.Contains(contentStr, "processes data with context") {
+					t.Error("New documentation not added")
+				}
+				if strings.Contains(contentStr, "processes data without context") {
+					t.Error("Old documentation still present")
 				}
 			},
 		},
 		{
 			name: "add struct field tags",
 			initial: `package test
+// User represents a basic user without metadata
 type User struct {
 	ID   int
 	Name string
 }`,
 			req: EditRequest{
 				Symbol: "User",
-				Content: `type User struct {
+				Content: `// User represents a user with JSON and DB metadata
+type User struct {
 	ID   int    ` + "`json:\"id\" db:\"id\"`" + `
 	Name string ` + "`json:\"name\" db:\"name\"`" + `
 }`,
@@ -70,8 +81,13 @@ type User struct {
 					t.Fatal(err)
 				}
 				contentStr := string(content)
-				// Check for formatted tag strings
-				if !strings.Contains(contentStr, "`json:\"id\"") && !strings.Contains(contentStr, "`json:\"id\" db:\"id\"`") && !strings.Contains(contentStr, "`json:\"id\" db:\"id\"") {
+				if !strings.Contains(contentStr, "represents a user with JSON and DB metadata") {
+					t.Error("New documentation not added")
+				}
+				if strings.Contains(contentStr, "represents a basic user without metadata") {
+					t.Error("Old documentation still present")
+				}
+				if !strings.Contains(contentStr, "`json:\"id\"") && !strings.Contains(contentStr, "`json:\"id\" db:\"id\"`") {
 					t.Error("JSON tags not added")
 				}
 				if !strings.Contains(contentStr, "db:\"name\"") && !strings.Contains(contentStr, "`db:\"name\"`") {
@@ -82,14 +98,17 @@ type User struct {
 		{
 			name: "implement interface method",
 			initial: `package test
+// Handler handles basic operations
 type Handler interface {
 	Handle(context.Context) error
 }
+// Service provides basic functionality
 type Service struct{}`,
 			req: EditRequest{
 				Symbol:   "Service",
 				Position: "after",
-				Content: `func (s *Service) Handle(ctx context.Context) error {
+				Content: `// Handle implements Handler interface with advanced error handling
+func (s *Service) Handle(ctx context.Context) error {
 	return nil
 }`,
 			},
@@ -101,7 +120,11 @@ type Service struct{}`,
 				if err != nil {
 					t.Fatal(err)
 				}
-				if !strings.Contains(string(content), "func (s *Service) Handle") {
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "implements Handler interface with advanced error handling") {
+					t.Error("Method documentation not added")
+				}
+				if !strings.Contains(contentStr, "func (s *Service) Handle") {
 					t.Error("Interface method not implemented")
 				}
 			},
@@ -109,14 +132,17 @@ type Service struct{}`,
 		{
 			name: "add method before existing",
 			initial: `package test
+// Service provides data processing
 type Service struct{}
+// Process handles data processing
 func (s *Service) Process() error {
 	return nil
 }`,
 			req: EditRequest{
 				Symbol:   "Process",
 				Position: "before",
-				Content: `func (s *Service) Validate() error {
+				Content: `// Validate ensures data integrity before processing
+func (s *Service) Validate() error {
 	return nil
 }`,
 			},
@@ -129,6 +155,9 @@ func (s *Service) Process() error {
 					t.Fatal(err)
 				}
 				validateStr := string(content)
+				if !strings.Contains(validateStr, "ensures data integrity") {
+					t.Error("New method documentation not added")
+				}
 				if !strings.Contains(validateStr, "func (s *Service) Validate") {
 					t.Error("Method not added")
 				}
@@ -142,14 +171,17 @@ func (s *Service) Process() error {
 		{
 			name: "add method after existing",
 			initial: `package test
+// Service provides data processing
 type Service struct{}
+// Process handles initial data processing
 func (s *Service) Process() error {
 	return nil
 }`,
 			req: EditRequest{
 				Symbol:   "Process",
 				Position: "after",
-				Content: `func (s *Service) Cleanup() error {
+				Content: `// Cleanup performs post-processing cleanup operations
+func (s *Service) Cleanup() error {
 	return nil
 }`,
 			},
@@ -162,6 +194,9 @@ func (s *Service) Process() error {
 					t.Fatal(err)
 				}
 				validateStr := string(content)
+				if !strings.Contains(validateStr, "performs post-processing cleanup") {
+					t.Error("New method documentation not added")
+				}
 				if !strings.Contains(validateStr, "func (s *Service) Cleanup") {
 					t.Error("Method not added")
 				}
@@ -175,6 +210,7 @@ func (s *Service) Process() error {
 		{
 			name: "handle missing symbol",
 			initial: `package test
+// Existing function with basic functionality
 func Existing() {}`,
 			req: EditRequest{
 				Symbol:  "NonExistent",
@@ -197,6 +233,7 @@ func Existing() {}`,
 		{
 			name: "handle invalid syntax",
 			initial: `package test
+// Valid performs basic validation
 func Valid() {}`,
 			req: EditRequest{
 				Symbol:  "Valid",
@@ -225,7 +262,9 @@ func (sh *SubscriptionHandler) updateExpiredSubscriptions(ctx context.Context) e
 }`,
 			req: EditRequest{
 				Symbol: "updateExpiredSubscriptions",
-				Content: `// updateExpiredSubscriptions updates the status of expired subscriptions
+				Content: `// updateExpiredSubscriptions processes expired subscriptions and logs the changes
+// It handles each subscription in a separate transaction for better isolation
+// and maintains an audit log of all status changes.
 func (sh *SubscriptionHandler) updateExpiredSubscriptions(ctx context.Context) error {
 	// First, get the subscriptions that will be expired
 	rows, err := sh.db.QueryContext(ctx, ` + "`" + `
@@ -363,8 +402,11 @@ func (sh *SubscriptionHandler) updateExpiredSubscriptions(ctx context.Context) e
 					t.Fatal(err)
 				}
 				contentStr := string(content)
-				if !strings.Contains(contentStr, "// updateExpiredSubscriptions updates") {
-					t.Error("Function documentation not preserved")
+				if !strings.Contains(contentStr, "processes expired subscriptions and logs the changes") {
+					t.Error("New function documentation not added")
+				}
+				if strings.Contains(contentStr, "updates the status of expired subscriptions") {
+					t.Error("Old documentation still present")
 				}
 				if !strings.Contains(contentStr, "expiredCount int64") {
 					t.Error("Function implementation not updated")

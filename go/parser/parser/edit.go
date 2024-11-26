@@ -7,15 +7,32 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"regexp"
 )
 
 // Edit performs the requested code edit
 func Edit(req EditRequest) EditResult {
-	// Set up the token file set
+	// First validate the new content
 	fset := token.NewFileSet()
+	_, err := parser.ParseFile(fset, "", "package temp\n"+req.Content, parser.ParseComments)
+	if err != nil {
+		return EditResult{
+			Success: false,
+			Error:   "Failed to parse new content: " + err.Error(),
+		}
+	}
+
+	// Read the original file content
+	content, err := os.ReadFile(req.Path)
+	if err != nil {
+		return EditResult{
+			Success: false,
+			Error:   "Failed to read file: " + err.Error(),
+		}
+	}
 
 	// Parse the source file
-	file, err := parser.ParseFile(fset, req.Path, nil, parser.ParseComments)
+	file, err := parser.ParseFile(fset, req.Path, content, parser.ParseComments)
 	if err != nil {
 		return EditResult{
 			Success: false,
@@ -23,7 +40,7 @@ func Edit(req EditRequest) EditResult {
 		}
 	}
 
-	// Find the target symbol
+	// Find the target symbol and its parent
 	var (
 		target ast.Node
 		parent ast.Node
@@ -75,42 +92,53 @@ func Edit(req EditRequest) EditResult {
 		}
 	}
 
-	// Parse the new content
-	newFile, err := parser.ParseFile(fset, "", "package temp\n"+req.Content, parser.ParseComments)
+	// Get the target's source text range
+	var targetStart, targetEnd token.Position
+	if parent != nil {
+		targetStart = fset.Position(parent.Pos())
+		targetEnd = fset.Position(parent.End())
+	} else {
+		targetStart = fset.Position(target.Pos())
+		targetEnd = fset.Position(target.End())
+	}
+
+	// Find and remove any comments before the target
+	contentStr := string(content)
+	lines := bytes.Split(content, []byte("\n"))
+	startLine := targetStart.Line - 1
+	for startLine > 0 && isComment(string(lines[startLine-1])) {
+		startLine--
+	}
+
+	// Create the replacement text
+	var replacement string
+	switch req.Position {
+	case "before":
+		replacement = req.Content + "\n\n" + contentStr[targetStart.Offset:targetEnd.Offset]
+	case "after":
+		replacement = contentStr[targetStart.Offset:targetEnd.Offset] + "\n\n" + req.Content
+	default:
+		replacement = req.Content
+	}
+
+	// Replace the target text including its comments
+	newContent := contentStr[:fset.Position(file.Package).Offset] + // Keep package declaration
+		contentStr[fset.Position(file.Package).Offset:bytes.Index(content, lines[startLine])] + // Keep imports
+		replacement +
+		contentStr[targetEnd.Offset:] // Keep rest of file
+
+	// Parse the modified content
+	newFile, err := parser.ParseFile(fset, req.Path, newContent, parser.ParseComments)
 	if err != nil {
 		return EditResult{
 			Success: false,
-			Error:   "Failed to parse new content: " + err.Error(),
-		}
-	}
-
-	if len(newFile.Decls) == 0 {
-		return EditResult{
-			Success: false,
-			Error:   "No declarations found in new content",
-		}
-	}
-
-	// Get the first declaration from the new content
-	newDecl := newFile.Decls[0]
-
-	// Replace or insert the node
-	switch req.Position {
-	case "before":
-		insertBefore(file, target, newDecl)
-	case "after":
-		insertAfter(file, target, newDecl)
-	default:
-		if parent != nil {
-			replaceInParent(parent, target, newDecl)
-		} else {
-			replace(file, target, newDecl)
+			Error:   "Failed to parse modified content: " + err.Error(),
 		}
 	}
 
 	// Format the modified AST
 	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, file); err != nil {
+	if err := format.Node(&buf, fset, newFile); err != nil {
 		return EditResult{
 			Success: false,
 			Error:   "Failed to format modified code: " + err.Error(),
@@ -131,6 +159,10 @@ func Edit(req EditRequest) EditResult {
 	}
 }
 
+func isComment(line string) bool {
+	return regexp.MustCompile(`^\s*//`).MatchString(line)
+}
+
 func findParentGenDecl(file *ast.File, target ast.Node) *ast.GenDecl {
 	var parent *ast.GenDecl
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -148,68 +180,6 @@ func findParentGenDecl(file *ast.File, target ast.Node) *ast.GenDecl {
 		return true
 	})
 	return parent
-}
-
-func insertBefore(file *ast.File, target, newNode ast.Node) {
-	for i, decl := range file.Decls {
-		if decl == target || containsNode(decl, target) {
-			newDecls := make([]ast.Decl, 0, len(file.Decls)+1)
-			newDecls = append(newDecls, file.Decls[:i]...)
-			newDecls = append(newDecls, newNode.(ast.Decl))
-			newDecls = append(newDecls, file.Decls[i:]...)
-			file.Decls = newDecls
-			return
-		}
-	}
-}
-
-func insertAfter(file *ast.File, target, newNode ast.Node) {
-	for i, decl := range file.Decls {
-		if decl == target || containsNode(decl, target) {
-			newDecls := make([]ast.Decl, 0, len(file.Decls)+1)
-			newDecls = append(newDecls, file.Decls[:i+1]...)
-			newDecls = append(newDecls, newNode.(ast.Decl))
-			newDecls = append(newDecls, file.Decls[i+1:]...)
-			file.Decls = newDecls
-			return
-		}
-	}
-}
-
-func replace(file *ast.File, target, newNode ast.Node) {
-	for i, decl := range file.Decls {
-		if decl == target {
-			file.Decls[i] = newNode.(ast.Decl)
-			return
-		}
-	}
-}
-
-func replaceInParent(parent, target, newNode ast.Node) {
-	switch p := parent.(type) {
-	case *ast.GenDecl:
-		for i, spec := range p.Specs {
-			if spec == target {
-				switch n := newNode.(type) {
-				case *ast.GenDecl:
-					if len(n.Specs) > 0 {
-						if newTypeSpec, ok := n.Specs[0].(*ast.TypeSpec); ok {
-							if oldTypeSpec, ok := spec.(*ast.TypeSpec); ok {
-								newTypeSpec.Name = oldTypeSpec.Name
-								p.Specs[i] = newTypeSpec
-							}
-						}
-					}
-				case *ast.TypeSpec:
-					if oldTypeSpec, ok := spec.(*ast.TypeSpec); ok {
-						n.Name = oldTypeSpec.Name
-						p.Specs[i] = n
-					}
-				}
-				return
-			}
-		}
-	}
 }
 
 func containsNode(parent, target ast.Node) bool {
