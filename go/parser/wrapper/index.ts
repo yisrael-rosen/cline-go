@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 
 interface Symbol {
     name: string;
@@ -70,6 +71,32 @@ export class GoParser {
         console.log('Editing file:', absolutePath);
         console.log('Edit request:', JSON.stringify(edit, null, 2));
         
+        // Validate file exists
+        try {
+            await fs.promises.access(absolutePath);
+        } catch (err) {
+            return {
+                success: false,
+                error: `File not found: ${filePath}`
+            };
+        }
+        
+        // Validate edit type
+        if (!['replace', 'insert', 'delete'].includes(edit.editType)) {
+            return {
+                success: false,
+                error: `Invalid edit type: ${edit.editType}. Must be 'replace', 'insert', or 'delete'`
+            };
+        }
+
+        // Validate required parameters based on edit type
+        if (edit.editType !== 'delete' && !edit.newContent) {
+            return {
+                success: false,
+                error: `Content is required for ${edit.editType} operations`
+            };
+        }
+
         // Validate insert configuration
         if (edit.editType === 'insert') {
             if (!edit.insert) {
@@ -78,10 +105,16 @@ export class GoParser {
                     error: 'Insert configuration is required for insert operations'
                 };
             }
-            if (edit.insert.position !== 'before' && edit.insert.position !== 'after') {
+            if (!edit.insert.position || !['before', 'after'].includes(edit.insert.position)) {
                 return {
                     success: false,
-                    error: 'Invalid Position: must be "before" or "after"'
+                    error: `Invalid position: ${edit.insert.position}. Must be 'before' or 'after'`
+                };
+            }
+            if (!edit.insert.relativeToSymbol) {
+                return {
+                    success: false,
+                    error: 'Target symbol (relativeToSymbol) is required for insert operations'
                 };
             }
         }
@@ -146,8 +179,16 @@ export class GoParser {
             childProcess.on('close', (code) => {
                 console.log('Process exited with code:', code);
                 if (code !== 0) {
-                    reject(new Error(`Parser failed with code ${code}: ${stderr}`));
-                    return;
+                    // Try to parse error from stderr first
+                    try {
+                        const errorJson = JSON.parse(stderr);
+                        reject(new Error(errorJson.error || `Parser failed with code ${code}`));
+                        return;
+                    } catch {
+                        // If stderr isn't JSON, use the raw stderr message
+                        reject(new Error(stderr.trim() || `Parser failed with code ${code}`));
+                        return;
+                    }
                 }
 
                 try {
@@ -161,6 +202,13 @@ export class GoParser {
                     console.log('Parsing JSON result:', jsonStr);
                     const result = JSON.parse(jsonStr);
                     console.log('Parsed result:', JSON.stringify(result, null, 2));
+                    
+                    // Check if result contains an error
+                    if (!result.Success && result.Error) {
+                        reject(new Error(result.Error));
+                        return;
+                    }
+                    
                     resolve(result);
                 } catch (err) {
                     reject(new Error(`Failed to parse result: ${err}`));
@@ -170,7 +218,7 @@ export class GoParser {
             // Handle process errors
             childProcess.on('error', (err) => {
                 console.error('Process error:', err);
-                reject(new Error(`Failed to run parser: ${err}`));
+                reject(new Error(`Failed to run parser: ${err.message}`));
             });
         });
     }

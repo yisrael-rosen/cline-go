@@ -88,7 +88,7 @@ Description: Request to edit Go code using symbol-based modifications. This tool
 Parameters:
 - path: (required) The path of the file to edit (relative to the current working directory c:/Users/ROSEN/dev/cline)
 - edit_type: (required) The type of edit operation ('replace' | 'insert' | 'delete')
-- symbol: (required for replace/delete) The name of the symbol to edit
+- symbol: (required) The name of the symbol to edit or add
 - content: (required for replace/insert) The new content to use
 - position: (required for insert) Specifies where to insert ('before' | 'after')
 - relative_to_symbol: (required for insert) The target symbol to insert relative to
@@ -96,7 +96,7 @@ Usage:
 <edit_go_symbols>
 <path>File path here</path>
 <edit_type>replace</edit_type>
-<symbol>processData</symbol>
+<symbol>NameOfTheSymbol</symbol>
 <content>Your Go code content here</content>
 <position>before or after (required for insert)</position>
 <relative_to_symbol>Target symbol (required for insert)</relative_to_symbol>

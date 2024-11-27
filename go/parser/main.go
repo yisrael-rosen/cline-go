@@ -15,18 +15,30 @@ type Command struct {
 	Edit      *parser.EditRequest `json:"edit,omitempty"`
 }
 
+type ErrorResponse struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+}
+
 func validateEditRequest(req *parser.EditRequest) error {
 	if req == nil {
 		return fmt.Errorf("edit request is required")
 	}
+	if req.Path == "" {
+		return fmt.Errorf("file path is required")
+	}
+	// Check if file exists
+	if _, err := os.Stat(req.Path); os.IsNotExist(err) {
+		return fmt.Errorf("file does not exist: %s", req.Path)
+	}
 	if req.Symbol == "" {
-		return fmt.Errorf("symbol is required")
+		return fmt.Errorf("symbol name is required")
 	}
 	if req.EditType == "" {
 		return fmt.Errorf("edit type is required")
 	}
 	if req.EditType != "replace" && req.EditType != "insert" && req.EditType != "delete" {
-		return fmt.Errorf("invalid edit type: must be 'replace', 'insert', or 'delete'")
+		return fmt.Errorf("invalid edit type '%s': must be 'replace', 'insert', or 'delete'", req.EditType)
 	}
 	if req.EditType != "delete" && req.Content == "" {
 		return fmt.Errorf("content is required for %s operations", req.EditType)
@@ -39,10 +51,10 @@ func validateEditRequest(req *parser.EditRequest) error {
 			return fmt.Errorf("position is required for insert operations")
 		}
 		if req.Insert.Position != "before" && req.Insert.Position != "after" {
-			return fmt.Errorf("invalid position: must be 'before' or 'after'")
+			return fmt.Errorf("invalid position '%s': must be 'before' or 'after'", req.Insert.Position)
 		}
 		if req.Insert.RelativeToSymbol == "" {
-			return fmt.Errorf("relative-to symbol is required for insert operations")
+			return fmt.Errorf("target symbol (relative-to) is required for insert operations")
 		}
 	}
 	return nil
@@ -58,7 +70,7 @@ func main() {
 		// Read command from stdin
 		decoder := json.NewDecoder(os.Stdin)
 		if err := decoder.Decode(&cmd); err != nil {
-			writeError(fmt.Sprintf("Failed to parse input: %v", err))
+			writeError(fmt.Sprintf("failed to parse input JSON: %v", err))
 			os.Exit(1)
 		}
 		// Validate the JSON input
@@ -80,7 +92,7 @@ func main() {
 		flag.Parse()
 
 		if *filePath == "" {
-			writeError("File path is required")
+			writeError("file path is required")
 			os.Exit(1)
 		}
 
@@ -121,39 +133,44 @@ func main() {
 	case "parse":
 		result, err := parser.Parse(cmd.File)
 		if err != nil {
-			writeError(fmt.Sprintf("Parse failed: %v", err))
+			writeError(fmt.Sprintf("failed to parse file: %v", err))
 			os.Exit(1)
 		}
 		writeJSON(result)
 
 	case "edit":
 		if cmd.Edit == nil {
-			writeError("Edit request is required for edit operation")
+			writeError("edit request is required for edit operation")
 			os.Exit(1)
 		}
 		result := parser.Edit(*cmd.Edit)
+		if !result.Success {
+			writeError(result.Error)
+			os.Exit(1)
+		}
 		writeJSON(result)
 
 	default:
-		writeError(fmt.Sprintf("Unknown operation: %s", cmd.Operation))
+		writeError(fmt.Sprintf("unknown operation: %s", cmd.Operation))
 		os.Exit(1)
 	}
 }
 
 func writeJSON(v interface{}) {
 	if err := json.NewEncoder(os.Stdout).Encode(v); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write JSON: %v\n", err)
+		errResp := ErrorResponse{
+			Success: false,
+			Error:   fmt.Sprintf("failed to write JSON response: %v", err),
+		}
+		json.NewEncoder(os.Stderr).Encode(errResp)
 		os.Exit(1)
 	}
 }
 
 func writeError(msg string) {
-	err := struct {
-		Success bool   `json:"success"`
-		Error   string `json:"error"`
-	}{
+	errResp := ErrorResponse{
 		Success: false,
 		Error:   msg,
 	}
-	writeJSON(err)
+	json.NewEncoder(os.Stderr).Encode(errResp)
 }
