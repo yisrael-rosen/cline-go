@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Cline (prev. Claude Dev)",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.1.17",
+  "version": "2.1.18",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -54,6 +54,48 @@
         }
       ]
     },
+    
+    "configuration": {
+  "title": "Cline",
+  "properties": {
+    "cline.apiProvider": {
+      "type": "string",
+      "enum": ["anthropic", "openrouter"],
+      "default": "anthropic",
+      "description": "The API provider to use"
+    },
+    "cline.apiModelId": {
+      "type": "string",
+      "enum": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
+      "description": "The model ID to use"
+    },
+    "cline.apiKey": {
+          "type": "string",
+          "description": "API Key for Cline (Use 'Cline: Set API Key' command to set securely)",
+          "scope": "application"
+        },
+    "cline.anthropicBaseUrl": {
+      "type": "string",
+      "description": "Custom base URL for Anthropic API (optional)"
+    },
+    "cline.customInstructions": {
+      "type": "string",
+      "description": "Custom instructions added to the system prompt"
+    },
+    "cline.alwaysAllowReadOnly": {
+      "type": "boolean",
+      "default": false,
+      "description": "Automatically approve read-only operations"
+    },
+    "cline.enabledTools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of enabled tools"
+    }
+  }
+},
     "views": {
       "claude-dev-ActivityBar": [
         {
@@ -87,6 +129,11 @@
       {
         "command": "cline.openInNewTab",
         "title": "Open In New Tab",
+        "category": "Cline"
+      },
+      {
+        "command": "cline.setApiKey",
+        "title": "Cline: Set API Key",
         "category": "Cline"
       }
     ],

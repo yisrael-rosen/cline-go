@@ -30,6 +30,20 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	)
 
+	context.subscriptions.push(
+		vscode.commands.registerCommand('cline.setApiKey', async () => {
+		  const apiKey = await vscode.window.showInputBox({
+			prompt: 'Enter your Cline API Key',
+			password: true, // Hides the input
+			ignoreFocusOut: true
+		  });
+		  
+		  if (apiKey) {
+			await context.secrets.store('apiKey', apiKey);
+			vscode.window.showInformationMessage('Cline API Key has been updated');
+		  }
+		})
+	  );
 	const openClineInNewTab = async () => {
 		outputChannel.appendLine("Opening Cline in new tab")
 		const tabProvider = new ClineProvider(context, outputChannel)

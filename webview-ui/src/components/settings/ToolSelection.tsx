@@ -6,14 +6,6 @@ import { ToolUseName, AVAILABLE_TOOLS } from "../../types/extension";
 export const ToolSelection = () => {
   const { enabledTools = [], setEnabledTools } = useExtensionState();
 
-  // Enable all tools by default when component mounts and no tools are enabled
-  useEffect(() => {
-    if (enabledTools.length === 0) {
-      const allTools = AVAILABLE_TOOLS.map(tool => tool.id);
-      setEnabledTools(allTools);
-    }
-  }, [enabledTools.length, setEnabledTools]);
-
   const handleToolToggle = (toolId: ToolUseName, enabled: boolean) => {
     if (enabled) {
       setEnabledTools([...enabledTools, toolId]);

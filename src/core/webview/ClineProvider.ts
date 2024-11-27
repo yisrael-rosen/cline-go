@@ -19,6 +19,7 @@ import { Cline } from "../Cline"
 import { openMention } from "../mentions"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
+import { ToolUseName } from '../../shared/ExtensionMessage';
 
 type SecretKey = "apiKey"
 type GlobalStateKey =
@@ -213,33 +214,35 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
-							const { apiProvider, apiModelId, apiKey, anthropicBaseUrl } = message.apiConfiguration
-							await this.updateGlobalState("apiProvider", apiProvider)
-							await this.updateGlobalState("apiModelId", apiModelId)
-							await this.storeSecret("apiKey", apiKey)
-							await this.updateGlobalState("anthropicBaseUrl", anthropicBaseUrl)
+							const { apiProvider, apiModelId, apiKey, anthropicBaseUrl } = message.apiConfiguration;
+							const config = vscode.workspace.getConfiguration('cline');
+							await config.update('apiProvider', apiProvider, true);
+							await config.update('apiModelId', apiModelId, true);
+							await this.storeSecret('apiKey', apiKey);
+							await config.update('anthropicBaseUrl', anthropicBaseUrl, true);
 							if (this.cline) {
-								this.cline.api = buildApiHandler(message.apiConfiguration)
+								this.cline.api = buildApiHandler(message.apiConfiguration);
 							}
 						}
-						await this.postStateToWebview()
-						break
+						await this.postStateToWebview();
+						break;
+
 					case "customInstructions":
-						await this.updateCustomInstructions(message.text)
-						break
+						const configInstructions = vscode.workspace.getConfiguration('cline');
+						await configInstructions.update('customInstructions', message.text, true);
+						break;
+
 					case "alwaysAllowReadOnly":
-						await this.updateGlobalState("alwaysAllowReadOnly", message.bool ?? undefined)
-						if (this.cline) {
-							this.cline.alwaysAllowReadOnly = message.bool ?? false
-						}
-						await this.postStateToWebview()
-						break
+						const configAllow = vscode.workspace.getConfiguration('cline');
+						await configAllow.update('alwaysAllowReadOnly', message.bool, true);
+						break;
+
 					case "enabledTools":
 						if (message.tools) {
-							await this.updateGlobalState("enabledTools", message.tools)
+							const configTools = vscode.workspace.getConfiguration('cline');
+							await configTools.update('enabledTools', message.tools, true);
 						}
-						await this.postStateToWebview()
-						break
+						break;
 					case "askResponse":
 						this.cline?.handleWebviewAskResponse(message.askResponse!, message.text, message.images)
 						break
@@ -311,7 +314,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		}
 		await this.postStateToWebview()
 	}
-
+	async updateConfiguration(key: string, value: any) {
+		await vscode.workspace.getConfiguration('cline').update(key, value, true);
+	}
 	async getTaskWithId(id: string): Promise<{
 		historyItem: HistoryItem
 		taskDirPath: string
@@ -411,46 +416,29 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		this.cline = undefined
 	}
 
+
+
 	async getState() {
-		const [
-			storedApiProvider,
-			apiModelId,
-			apiKey,
-			anthropicBaseUrl,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			taskHistory,
-			enabledTools,
-		] = await Promise.all([
-			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
-			this.getGlobalState("apiModelId") as Promise<string | undefined>,
-			this.getSecret("apiKey") as Promise<string | undefined>,
-			this.getGlobalState("anthropicBaseUrl") as Promise<string | undefined>,
-			this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
-			this.getGlobalState("customInstructions") as Promise<string | undefined>,
-			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
-			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-			this.getGlobalState("enabledTools") as Promise<string[] | undefined>,
-		])
-
-		const apiProvider: ApiProvider = storedApiProvider || "anthropic"
-
+		const config = vscode.workspace.getConfiguration('cline');
+		const [lastShownAnnouncementId, taskHistory] = await Promise.all([
+		  this.getGlobalState("lastShownAnnouncementId") as Promise<string | undefined>,
+		  this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>
+		]);
+	
 		return {
-			apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				anthropicBaseUrl,
-			},
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-			taskHistory,
-			enabledTools,
-		}
-	}
-
+		  apiConfiguration: {
+			apiProvider: config.get<ApiProvider>('apiProvider', 'anthropic'),
+			apiModelId: config.get<string>('apiModelId'),
+			apiKey: await this.getSecret('apiKey'),
+			anthropicBaseUrl: config.get<string>('anthropicBaseUrl')
+		  },
+		  customInstructions: config.get<string>('customInstructions'),
+		  alwaysAllowReadOnly: config.get<boolean>('alwaysAllowReadOnly', false),
+		  enabledTools: config.get<ToolUseName[]>('enabledTools'),
+		  lastShownAnnouncementId,
+		  taskHistory
+		};
+	  }
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
@@ -494,7 +482,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.cline = undefined
 		}
 		// Explicitly clear enabledTools to ensure it's reset
-		await this.updateGlobalState("enabledTools", undefined)
+		await this.updateConfiguration("enabledTools", undefined)
 		vscode.window.showInformationMessage("State reset")
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
