@@ -23,6 +23,7 @@ import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import { editCodeWithSymbols, canEditWithSymbols, getCodeSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
 import { GoParser, EditRequest } from "../../go/parser/wrapper"
+import { getGoSymbols, GoSymbol,formatGoSymbols } from '../services/go/get-go-symbols';
 
 import {
 	BrowserAction,
@@ -885,6 +886,8 @@ export class Cline {
 					switch (block.name) {
 						case "get_code_symbols":
     						return `[${block.name} for '${block.params.path}']`
+						case "get_go_symbols":
+    						return `[${block.name} for '${block.params.path}']`
 						case "edit_code_symbols":
     						return `[${block.name} for '${block.params.path}']`
 						case "edit_go_symbols":
@@ -1032,6 +1035,79 @@ export class Cline {
 				}
 
 				switch (block.name) {
+					case "get_go_symbols": {
+						const relPath: string | undefined = block.params.path
+						const sharedMessageProps: ClineSayTool = {
+							tool: "getGoSymbols",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath))
+						}
+					
+						try {
+							if (block.partial) {
+								const partialMessage = JSON.stringify({
+									...sharedMessageProps,
+									content: "",
+								} satisfies ClineSayTool)
+								if (this.alwaysAllowReadOnly) {
+									await this.say("tool", partialMessage, undefined, block.partial)
+								} else {
+									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								}
+								break
+							} else {
+								if (!relPath) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("get_go_symbols", "path"))
+									break
+								}
+					
+								this.consecutiveMistakeCount = 0
+								const absolutePath = path.resolve(cwd, relPath)
+					
+								// Verify file extension is .go
+								if (!absolutePath.endsWith('.go')) {
+									pushToolResult(`File '${relPath}' is not a Go file. This tool can only be used with .go files.`)
+									break
+								}
+					
+								try {
+									// Get Go symbols using the existing getGoSymbols function
+									const result = await getGoSymbols(absolutePath)
+									
+									if (!result.success || !result.symbols) {
+										pushToolResult(`Failed to get Go symbols: ${result.error || 'Unknown error'}`)
+										break
+									}
+					
+									// Format the symbols into a readable structure
+									const symbolsResult = formatGoSymbols(result.symbols)
+									
+									const completeMessage = JSON.stringify({
+										...sharedMessageProps,
+										content: symbolsResult
+									} satisfies ClineSayTool)
+					
+									if (this.alwaysAllowReadOnly) {
+										await this.say("tool", completeMessage, undefined, false)
+									} else {
+										const didApprove = await askApproval("tool", completeMessage)
+										if (!didApprove) {
+											break
+										}
+									}
+									
+									pushToolResult(symbolsResult)
+									break
+								} catch (error) {
+									await handleError("getting go symbols", error)
+									break
+								}
+							}
+						} catch (error) {
+							await handleError("getting go symbols", error)
+							break
+						}
+					}
 					case "edit_go_symbols": {
 						const relPath: string | undefined = block.params.path
 						const editType: string | undefined = block.params.edit_type 

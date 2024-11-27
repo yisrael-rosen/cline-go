@@ -35,3 +35,21 @@ export async function getGoSymbols(filePath: string): Promise<GoSymbolsResult> {
         };
     }
 }
+// Helper function to format Go symbols into a readable structure
+export function formatGoSymbols(symbols: GoSymbol[]): string {
+    const formatSymbol = (symbol: GoSymbol, indent: string = ''): string[] => {
+        const lines: string[] = []
+        const kindAndName = `${symbol.kind}: ${symbol.name}`
+        const docString = symbol.doc ? `\n${indent}  Doc: ${symbol.doc}` : ''
+        lines.push(`${indent}${kindAndName}${docString}`)
+        
+        if (symbol.children && symbol.children.length > 0) {
+            symbol.children.forEach(child => {
+                lines.push(...formatSymbol(child, indent + '  '))
+            })
+        }
+        return lines
+    }
+
+    return symbols.map(symbol => formatSymbol(symbol).join('\n')).join('\n')
+}

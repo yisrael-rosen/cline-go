@@ -82,6 +82,7 @@ export interface ClineSayTool {
         | "listCodeDefinitionNames"
         | "findReferences"
         | "searchFiles"
+        | "getGoSymbols"
     path?: string
     content?: string
     diff?: string
