@@ -4,7 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
-import ToolSelection from "./ToolSelection"
+import { ToolSelection } from "./ToolSelection"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
