@@ -157,11 +157,6 @@
         "icon": "$(link-external)"
       },
       {
-        "command": "cline.settingsButtonClicked",
-        "title": "Settings",
-        "icon": "$(settings-gear)"
-      },
-      {
         "command": "cline.openInNewTab",
         "title": "Open In New Tab",
         "category": "Cline"
@@ -187,11 +182,6 @@
         {
           "command": "cline.popoutButtonClicked",
           "group": "navigation@3",
-          "when": "view == claude-dev.SidebarProvider"
-        },
-        {
-          "command": "cline.settingsButtonClicked",
-          "group": "navigation@4",
           "when": "view == claude-dev.SidebarProvider"
         }
       ]

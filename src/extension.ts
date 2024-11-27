@@ -43,7 +43,8 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('Cline API Key has been updated');
 		  }
 		})
-	  );
+	);
+
 	const openClineInNewTab = async () => {
 		outputChannel.appendLine("Opening Cline in new tab")
 		const tabProvider = new ClineProvider(context, outputChannel)
@@ -78,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("cline.settingsButtonClicked", () => {
-			sidebarProvider.postMessageToWebview({ type: "action", action: "settingsButtonClicked" })
+			vscode.commands.executeCommand('workbench.action.openSettings', '@ext:saoudrizwan.cline')
 		})
 	)
 
