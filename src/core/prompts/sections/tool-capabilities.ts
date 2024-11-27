@@ -1,127 +1,77 @@
 import { ToolCapabilitiesMap } from '../../../shared/types/project-config';
 
-export const defaultToolCapabilities: ToolCapabilitiesMap = {
-  execute_command: {
-    description: 'Execute CLI commands on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user\'s task.',
-    notes: [
-      'Must tailor commands to the user\'s system',
-      'Provide clear explanation of what the command does',
-      'Prefer complex CLI commands over creating executable scripts',
-      'Commands will be executed in the current working directory'
-    ]
-  },
-  search_files: {
-    description: 'Search files using regex patterns to find specific content with surrounding context.',
-    notes: [
-      'Searches for patterns or specific content across multiple files',
-      'Displays each match with encapsulating context',
-      'Uses Rust regex syntax'
-    ]
-  },
-  list_files: {
-    description: 'List files and directories to understand project structure.',
-    notes: [
-      'Can list recursively or top-level only',
-      'Helps understand project structure',
-      'Do not use to confirm file creation'
-    ]
-  },
-  list_code_definition_names: {
-    description: 'List code definitions like classes, functions, and methods to understand code structure.',
-    notes: [
-      'Provides insights into codebase structure',
-      'Shows important constructs and relationships',
-      'Helps understand overall architecture'
-    ]
-  },
-  find_references: {
-    description: 'Find all references and implementations of code symbols.',
-    notes: [
-      'Uses VSCode\'s built-in language services',
-      'Works across all supported languages',
-      'Helps understand symbol usage'
-    ]
-  },
-  attempt_completion: {
-    description: 'Present the final result after confirming all operations succeeded.',
-    notes: [
-      'Must confirm previous tool successes before using',
-      'Can include demo command to showcase result',
-      'Result should be final and not require further input'
-    ]
-  },
-  ask_followup_question: {
-    description: 'Ask the user for additional information when needed.',
-    notes: [
-      'Use when clarification is needed',
-      'Keep questions clear and specific',
-      'Use judiciously to maintain efficiency'
-    ]
-  },
-  browser_action: {
-    description: 'Control a browser for web-related tasks and testing.',
-    notes: [
-      'Must start with launch and end with close',
-      'One action per message',
-      'Browser window is 900x600 pixels',
-      'Click coordinates must target element centers'
-    ],
-    examples: [
-      'Verify web component rendering',
-      'Test user interactions',
-      'Debug web application issues'
-    ]
-  }
-};
-
 export const generateCapabilities = (
   cwd: string,
   enabledTools: string[],
   customCapabilities: Record<string, any> = {}
 ): string => {
-  // Generate summary of available tools
-  const toolSummaries = enabledTools
-    .map(tool => {
-      const cap = defaultToolCapabilities[tool];
-      if (!cap) return null;
-      return cap.description.split('.')[0];
-    })
-    .filter(Boolean);
+  const hasTools = (tools: string[]) => 
+    tools.every(tool => enabledTools.includes(tool));
 
-  const summary = toolSummaries.length > 0
-    ? `You have access to tools that let you: ${toolSummaries.join('; ')}.`
-    : 'You have access to tools that let you .';
+  const capabilities = [];
 
-  // Generate detailed capabilities for each tool
-  const details = enabledTools
-    .map(toolName => {
-      const defaultCap = defaultToolCapabilities[toolName];
-      const customCap = customCapabilities[toolName] || {};
+  // Base capabilities description
+  const toolTypes = [];
+  if (hasTools(['execute_command'])) toolTypes.push('execute CLI commands on the user\'s computer');
+  if (hasTools(['list_files'])) toolTypes.push('list files');
+  if (hasTools(['list_code_definition_names'])) toolTypes.push('view source code definitions');
+  if (hasTools(['search_files'])) toolTypes.push('perform regex searches');
+  if (hasTools(['browser_action'])) toolTypes.push('use the browser');
+  if (hasTools(['read_file', 'write_to_file'])) toolTypes.push('read and write files');
+  if (hasTools(['ask_followup_question'])) toolTypes.push('ask follow-up questions');
 
-      if (!defaultCap) return '';
+  const toolList = toolTypes.length > 0 
+    ? toolTypes.slice(0, -1).join(', ') + (toolTypes.length > 1 ? ', and ' + toolTypes[toolTypes.length - 1] : toolTypes[0])
+    : '';
 
-      let capability = `\n\n- ${customCap.description || defaultCap.description}`;
+  capabilities.push(
+    `- You have access to tools that let you ${toolList}. These tools help you effectively accomplish a wide range of tasks, such as writing code, making edits or improvements to existing files, understanding the current state of a project, performing system operations, and much more.`
+  );
 
-      const notes = [...(defaultCap.notes || []), ...(customCap.notes || [])];
-      if (notes.length > 0) {
-        capability += '\n  Notes:';
-        notes.forEach(note => {
-          capability += `\n    - ${note}`;
-        });
-      }
+  // File structure understanding
+  if (hasTools(['list_files'])) {
+    capabilities.push(
+      `- When the user initially gives you a task, a recursive list of all filepaths in the current working directory ('${cwd}') will be included in environment_details. This provides an overview of the project's file structure, offering key insights into the project from directory/file names (how developers conceptualize and organize their code) and file extensions (the language used). This can also guide decision-making on which files to explore further. If you need to further explore directories such as outside the current working directory, you can use the list_files tool. If you pass 'true' for the recursive parameter, it will list files recursively. Otherwise, it will list files at the top level, which is better suited for generic directories where you don't necessarily need the nested structure, like the Desktop.`
+    );
+  }
 
-      const examples = [...(defaultCap.examples || []), ...(customCap.examples || [])];
-      if (examples.length > 0) {
-        capability += '\n  Examples:';
-        examples.forEach(example => {
-          capability += `\n    - ${example}`;
-        });
-      }
+  // Search capabilities
+  if (hasTools(['search_files'])) {
+    capabilities.push(
+      `- You can use search_files to perform regex searches across files in a specified directory, outputting context-rich results that include surrounding lines. This is particularly useful for understanding code patterns, finding specific implementations, or identifying areas that need refactoring.`
+    );
+  }
 
-      return capability;
-    })
-    .filter(Boolean)
-    .join('');
+  // Code definition capabilities
+  if (hasTools(['list_code_definition_names'])) {
+    capabilities.push(
+      `- You can use the list_code_definition_names tool to get an overview of source code definitions for all files at the top level of a specified directory. This can be particularly useful when you need to understand the broader context and relationships between certain parts of the code. You may need to call this tool multiple times to understand various parts of the codebase related to the task.`
+    );
 
-  return summary + details;
+    if (hasTools(['read_file', 'write_to_file'])) {
+      capabilities.push(
+        `- For example, when asked to make edits or improvements, you might analyze the file structure in the initial environment_details to get an overview of the project, then use list_code_definition_names to get further insight using source code definitions for files located in relevant directories, then read_file to examine the contents of relevant files, analyze the code and suggest improvements or make necessary edits, then use the write_to_file tool to implement changes. If you refactored code that could affect other parts of the codebase, you could use search_files to ensure you update other files as needed.`
+      );
+    }
+  }
+
+  // Command execution capabilities
+  if (hasTools(['execute_command'])) {
+    capabilities.push(
+      `- You can use the execute_command tool to run commands on the user's computer whenever you feel it can help accomplish the user's task. When you need to execute a CLI command, you must provide a clear explanation of what the command does. Prefer to execute complex CLI commands over creating executable scripts, since they are more flexible and easier to run. Interactive and long-running commands are allowed, since the commands are run in the user's VSCode terminal. The user may keep commands running in the background, and you will be kept updated on their status along the way. Each command you execute is run in a new terminal instance.`
+    );
+  }
+
+  // Browser capabilities
+  if (hasTools(['browser_action'])) {
+    capabilities.push(
+      `- You can use the browser_action tool to interact with websites (including html files and locally running development servers) through a Puppeteer-controlled browser when you feel it is necessary in accomplishing the user's task. This tool is particularly useful for web development tasks, as it allows you to launch a browser, navigate to pages, interact with elements through clicks and keyboard input, and capture the results through screenshots and console logs. This tool may be useful at key stages of web development tasks, such as after implementing new features, making substantial changes, when troubleshooting issues, or to verify the result of your work. You can analyze the provided screenshots to ensure correct rendering or identify errors, and review console logs for runtime issues.`
+    );
+
+    capabilities.push(
+      `- For example, if asked to add a component to a react website, you might create the necessary files, use execute_command to run the site locally, then use browser_action to launch the browser, navigate to the local server, and verify the component renders & functions correctly before closing the browser.`
+    );
+  }
+
+  return capabilities.join('\n\n');
 };
