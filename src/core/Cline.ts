@@ -1037,6 +1037,8 @@ export class Cline {
 						const editType: string | undefined = block.params.edit_type 
 						const symbol: string | undefined = block.params.symbol
 						let content: string | undefined = block.params.content
+						const position: string | undefined = block.params.position
+						const relativeToSymbol: string | undefined = block.params.relative_to_symbol
 						const sharedMessageProps: ClineSayTool = {
 							tool: "editedGoSymbols",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
@@ -1081,6 +1083,24 @@ export class Cline {
 								break
 							}
 					
+							// Validate insert operation parameters
+							if (editType === 'insert') {
+								if (!position) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "position"))
+									break
+								}
+								if (!['before', 'after'].includes(position)) {
+									pushToolResult(`Invalid position: ${position}. Must be 'before' or 'after'.`)
+									break
+								}
+								if (!relativeToSymbol) {
+									this.consecutiveMistakeCount++
+									pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "relative_to_symbol"))
+									break
+								}
+							}
+					
 							const absolutePath = path.resolve(cwd, relPath)
 							
 							// Verify file extension is .go
@@ -1102,6 +1122,14 @@ export class Cline {
 									symbolName: symbol || '',
 									editType: editType as 'replace' | 'insert' | 'delete',
 									newContent: content
+								}
+					
+								// Add insert configuration if needed
+								if (editType === 'insert') {
+									editRequest.insert = {
+										position: position as 'before' | 'after',
+										relativeToSymbol: relativeToSymbol!
+									}
 								}
 					
 								// Perform the edit

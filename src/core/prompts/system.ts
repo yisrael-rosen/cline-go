@@ -90,14 +90,16 @@ Parameters:
 - edit_type: (required) The type of edit operation ('replace' | 'insert' | 'delete')
 - symbol: (required for replace/delete) The name of the symbol to edit
 - content: (required for replace/insert) The new content to use
+- position: (required for insert) Specifies where to insert ('before' | 'after')
+- relative_to_symbol: (required for insert) The target symbol to insert relative to
 Usage:
 <edit_go_symbols>
 <path>File path here</path>
 <edit_type>replace</edit_type>
 <symbol>processData</symbol>
-<content>
-Your Go code content here
-</content>
+<content>Your Go code content here</content>
+<position>before or after (required for insert)</position>
+<relative_to_symbol>Target symbol (required for insert)</relative_to_symbol>
 </edit_go_symbols>
 
 ## get_code_symbols

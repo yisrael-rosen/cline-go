@@ -42,7 +42,8 @@ export const toolParamNames = [
     "result",
     "symbol",
     "edit_type",
-    "position"
+    "position",
+	"relative_to_symbol"
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -116,6 +117,13 @@ export interface GetCodeSymbols extends ToolUse {
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
 export interface EditGoSymbols extends ToolUse {
-	name: "edit_go_symbols"
-	params: Partial<Pick<Record<ToolParamName, string>, "path">>
+    name: "edit_go_symbols"
+    params: Partial<Pick<Record<ToolParamName, string>, 
+        "path" | 
+        "edit_type" | 
+        "symbol" | 
+        "content" | 
+        "position" | 
+        "relative_to_symbol"
+    >>
 }
