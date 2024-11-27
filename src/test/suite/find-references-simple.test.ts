@@ -8,7 +8,7 @@ suite('Find References Simple', () => {
     const srcPath = path.join(projectPath, 'src');
     const filePath = path.join(srcPath, 'message.ts');
 
-    test('should find multiple references to printMessage', async function() {
+    test('should find multiple references to printMessage', async function(this: Mocha.Context) {
         // Increase timeout for this specific test
         this.timeout(10000);
 

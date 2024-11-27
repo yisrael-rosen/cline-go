@@ -58,7 +58,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle empty cases with fallthrough', async function() {
+    test('should handle empty cases with fallthrough', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -95,7 +95,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle cases with block statements', async function() {
+    test('should handle cases with block statements', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -136,7 +136,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle sequential empty cases', async function() {
+    test('should handle sequential empty cases', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -184,7 +184,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle case with escaped characters', async function() {
+    test('should handle case with escaped characters', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -221,7 +221,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle multiple operations sequentially', async function() {
+    test('should handle multiple operations sequentially', async function(this: Mocha.Context) {
         this.timeout(15000);
 
         try {
@@ -287,7 +287,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should verify file can be edited with symbols', async function() {
+    test('should verify file can be edited with symbols', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -300,7 +300,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should get case statements as symbols including nested cases', async function() {
+    test('should get case statements as symbols including nested cases', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -323,7 +323,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should replace nested case statement content', async function() {
+    test('should replace nested case statement content', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -350,7 +350,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle default case modifications', async function() {
+    test('should handle default case modifications', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -377,7 +377,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should insert new case statement', async function() {
+    test('should insert new case statement', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -409,7 +409,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should delete a case statement', async function() {
+    test('should delete a case statement', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -438,7 +438,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should handle invalid symbol operations', async function() {
+    test('should handle invalid symbol operations', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document
@@ -460,7 +460,7 @@ suite('Switch Case Edit Test Suite', () => {
         }
     });
 
-    test('should preserve whitespace and indentation', async function() {
+    test('should preserve whitespace and indentation', async function(this: Mocha.Context) {
         this.timeout(10000);
         try {
             // Create in-memory document

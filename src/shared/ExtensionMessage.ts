@@ -45,12 +45,16 @@ export type ToolUseName =
     | "read_file"
     | "write_to_file"
     | "edit_code_symbols"
+    | "edit_go_symbols"
+    | "get_go_symbols"
     | "search_files"
     | "list_files"
     | "list_code_definition_names"
     | "browser_action"
     | "ask_followup_question"
     | "attempt_completion"
+    | "find_references"
+    | "get_code_symbols"
 
 export type ToolParamName =
     | "command"

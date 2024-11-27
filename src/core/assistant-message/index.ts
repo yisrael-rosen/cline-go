@@ -22,6 +22,7 @@ export const toolUseNames = [
 	"edit_code_symbols",
 	"edit_go_symbols",
 	"get_code_symbols",
+	"get_go_symbols",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)

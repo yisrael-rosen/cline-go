@@ -11,7 +11,7 @@ suite('Find Document Symbols Test Suite', () => {
     const authFilePath = path.join(projectPath, 'auth.ts');
     const emptyFilePath = path.join(projectPath, 'empty.ts');
 
-    test('should find document symbols in user.ts', async function() {
+    test('should find document symbols in user.ts', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -55,7 +55,7 @@ suite('Find Document Symbols Test Suite', () => {
         }
     });
 
-    test('should find document symbols in auth.ts', async function() {
+    test('should find document symbols in auth.ts', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -95,7 +95,7 @@ suite('Find Document Symbols Test Suite', () => {
         }
     });
 
-    test('should handle files with no symbols', async function() {
+    test('should handle files with no symbols', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -130,7 +130,7 @@ suite('Find Document Symbols Test Suite', () => {
         }
     });
 
-    test('should throw an error for non-existent file', async function() {
+    test('should throw an error for non-existent file', async function(this: Mocha.Context) {
         this.timeout(5000);
         const nonExistentFilePath = path.join(projectPath, 'non-existent.ts');
 

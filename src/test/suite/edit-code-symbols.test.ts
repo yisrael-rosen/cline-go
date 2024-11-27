@@ -40,7 +40,7 @@ suite('Edit Code Symbols Test Suite', () => {
         await initializeTypeScript(filePath);
     }
 
-    test('should get code symbols from file', async function() {
+    test('should get code symbols from file', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -61,7 +61,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should detect if file can be edited with symbols', async function() {
+    test('should detect if file can be edited with symbols', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -78,7 +78,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should replace method content', async function() {
+    test('should replace method content', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -107,7 +107,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should insert new method after existing method', async function() {
+    test('should insert new method after existing method', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -137,7 +137,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should delete a method', async function() {
+    test('should delete a method', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -163,7 +163,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should handle multiple operations sequentially', async function() {
+    test('should handle multiple operations sequentially', async function(this: Mocha.Context) {
         this.timeout(15000);
 
         try {
@@ -219,7 +219,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should throw error for non-existent symbol', async function() {
+    test('should throw error for non-existent symbol', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
@@ -238,7 +238,7 @@ suite('Edit Code Symbols Test Suite', () => {
         }
     });
 
-    test('should handle interface edits', async function() {
+    test('should handle interface edits', async function(this: Mocha.Context) {
         this.timeout(10000);
 
         try {
