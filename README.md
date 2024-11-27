@@ -1,125 +1,84 @@
-# Cline (prev. Claude Dev) – \#1 on OpenRouter
+# Cline - Enhanced VSCode AI Assistant
 
-<p align="center">
-  <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
-</p>
+> **⚠️ Important:** This fork currently supports only Claude models. Other language models (OpenAI, Google, etc.) are not supported.
 
-<div align="center">
-<table>
-<tbody>
-<td align="center">
-<a href="https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev" target="_blank"><strong>Download on VS Marketplace</strong></a>
-</td>
-<td align="center">
-<a href="https://discord.gg/cline" target="_blank"><strong>Join the Discord</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/wiki" target="_blank"><strong>Docs</strong></a>
-</td>
-<td align="center">
-<a href="https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop" target="_blank"><strong>Feature Requests</strong></a>
-</td>
-</tbody>
-</table>
-</div>
+This fork extends the original Cline project with advanced code analysis and editing capabilities through VSCode API integration and custom Go tooling. Remarkably, 99% of this fork's development was performed by Cline itself, demonstrating the potential of AI-driven development.
 
-Meet Cline, an AI assistant that can use your **CLI** a**N**d **E**ditor.
+## Key Improvements
 
-Thanks to [Claude 3.5 Sonnet's agentic coding capabilities](https://www-cdn.anthropic.com/fed9cc193a14b84131812372d8d5857f8f304c52/Model_Card_Claude_3_Addendum.pdf), Cline can handle complex software development tasks step-by-step. With tools that let him create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission), he can assist you in ways that go beyond code completion or tech support. While autonomous AI scripts traditionally run in sandboxed environments, this extension provides a human-in-the-loop GUI to approve every file change and terminal command, providing a safe and accessible way to explore the potential of agentic AI.
+### Intelligent Code Analysis
+- **find_references**: Leverages VSCode's API to analyze code relationships
+  - Shows all references to symbols (like F12 in VSCode)
+  - Critical for understanding impact before making changes
+  - Ensures safer code modifications
+  - Prevents unintended side effects
 
-1. Enter your task and add images to convert mockups into functional apps or fix bugs with screenshots.
-2. Cline starts by analyzing your file structure & source code ASTs, running regex searches, and reading relevant files to get up to speed in existing projects. By carefully managing what information is added to context, Cline can provide valuable assistance even for large, complex projects without overwhelming the context window.
-3. Once Cline has the information he needs, he can:
-    - Create and edit files + monitor linter/compiler errors along the way, letting him proactively fix issues like missing imports and syntax errors on his own.
-    - Execute commands directly in your terminal and monitor their output as he works, letting him e.g., react to dev server issues after editing a file.
-    - For web development tasks, Cline can launch the site in a headless browser, click, type, scroll, and capture screenshots + console logs, allowing him to fix runtime errors and visual bugs.
-4. When a task is completed, Cline will present the result to you with a terminal command like `open -a "Google Chrome" index.html`, which you run with a click of a button.
+### Code Editing Tools
 
-> [!TIP]
-> Use the `CMD/CTRL + Shift + P` shortcut to open the command palette and type "Cline: Open In New Tab" to open the extension as a tab in your editor. This lets you use Cline side-by-side with your file explorer, and see how he changes your workspace more clearly.
+#### VSCode API-Based Tools
+- **get_code_symbols** & **edit_code_symbols**: Built on VSCode's native language services API
+  - Language-agnostic symbol analysis and editing
+  - Leverages VSCode's built-in language intelligence
+  - Full support for symbol-based operations (replace/insert/delete)
 
----
+#### Specialized Go Tools
+- **get_go_symbols** & **edit_go_symbols**: Custom-built CLI tool in Go
+  - Serves same purpose as VSCode API tools but specialized for Go
+  - Handles complex Go code patterns that generic API couldn't process well
+  - Direct manipulation through Go's AST package for better precision
+  - Better handling of Go-specific structures and documentation
+  - More reliable for complex Go codebases
 
-<img align="right" width="340" src="https://github.com/user-attachments/assets/3cf21e04-7ce9-4d22-a7b9-ba2c595e88a4">
+### Enhanced Settings Management
+- Settings moved to VSCode's native UI
+  - Accessible through User/Workspace settings
+  - Better integration with VSCode's configuration system
+  - Improved user experience for settings management
 
-### Use any API and Model
+### Smart Tool Selection
+- Project-specific tool configuration through VSCode settings
+  - Enable only the most effective tools for each project
+  - Prevents AI from using suboptimal tools for specific tasks
+  - Guides AI towards using the most appropriate tools
+  - Future-proof as more specialized tools are added
 
-Cline supports API providers like OpenRouter, Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure, and GCP Vertex. You can also configure any OpenAI compatible API, or use a local model through LM Studio/Ollama. If you're using OpenRouter, the extension fetches their latest model list, allowing you to use the newest models as soon as they're available.
+## Testing Infrastructure
 
-The extension also keeps track of total tokens and API usage cost for the entire task loop and individual requests, keeping you informed of spend every step of the way.
+### Comprehensive VSCode Integration Tests
+- Tests run in clean VSCode instances
+- Covers all edge cases for general code tools
+- Validates VSCode API integration
+- Ensures reliable symbol operations across languages
 
-<!-- Transparent pixel to create line break after floating image -->
+## Roadmap
 
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
+### Planned Features
+1. **Automated Testing & Deployment**
+   - Containerized testing for safety
+   - Automatic commits after task completion
+   - Self-verification through tests
+   - Streamlined PR review process
 
-<img align="left" width="370" src="https://github.com/user-attachments/assets/81be79a8-1fdb-4028-9129-5fe055e01e76">
+2. **Enhanced Customization**
+   - User-editable system prompts without rebuilding
+   - Improved symbol-based editing tools
+   - Append-only file modification tool
+   - Line-based editing for specific use cases
 
-### Run Commands in Terminal
-
-Thanks to the new [shell integration updates in VSCode v1.93](https://code.visualstudio.com/updates/v1_93#_terminal-shell-integration-api), Cline can execute commands directly in your terminal and receive the output. This allows him to perform a wide range of tasks, from installing packages and running build scripts to deploying applications, managing databases, and executing tests, all while adapting to your dev environment & toolchain to get the job done right.
-
-For long running processes like dev servers, use the "Proceed While Running" button to let Cline continue in the task while the command runs in the background. As Cline works he’ll be notified of any new terminal output along the way, letting him react to issues that may come up, such as compile-time errors when editing files.
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="right" width="400" src="https://github.com/user-attachments/assets/c5977833-d9b8-491e-90f9-05f9cd38c588">
-
-### Create and Edit Files
-
-Cline can create and edit files directly in your editor, presenting you a diff view of the changes. You can edit or revert Cline's changes directly in the diff view editor, or provide feedback in chat until you're satisfied with the result. Cline also monitors linter/compiler errors (missing imports, syntax errors, etc.) so he can fix issues that come up along the way on his own.
-
-All changes made by Cline are recorded in your file's Timeline, providing an easy way to track and revert modifications if needed.
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="left" width="370" src="https://github.com/user-attachments/assets/bc2e85ba-dfeb-4fe6-9942-7cfc4703cbe5">
-
-### Use the Browser
-
-With Claude 3.5 Sonnet's new [Computer Use](https://www.anthropic.com/news/3-5-models-and-computer-use) capability, Cline can launch a browser, click elements, type text, and scroll, capturing screenshots and console logs at each step. This allows for interactive debugging, end-to-end testing, and even general web use! This gives him autonomy to fixing visual bugs and runtime issues without you needing to handhold and copy-pasting error logs yourself.
-
-Try asking Cline to "test the app", and watch as he runs a command like `npm run dev`, launches your locally running dev server in a browser, and performs a series of tests to confirm that everything works. [See a demo here.](https://x.com/sdrzn/status/1850880547825823989)
-
-<!-- Transparent pixel to create line break after floating image -->
-
-<img width="2000" height="0" src="https://github.com/user-attachments/assets/ee14e6f7-20b8-4391-9091-8e8e25561929"><br>
-
-<img align="right" width="360" src="https://github.com/user-attachments/assets/7fdf41e6-281a-4b4b-ac19-020b838b6970">
-
-### Add Context
-
--   **`@url`:** Paste in a URL for the extension to fetch and convert to markdown, useful when you want to give Cline the latest docs
--   **`@problems`:** Add workspace errors and warnings ('Problems' panel) for Cline to fix
--   **`@file`:** Adds a file's contents so you don't have to waste API requests approving read file (+ type to search files)
--   **`@folder`:** Adds folder's files all at once to speed up your workflow even more
+3. **Project Intelligence**
+   - Dedicated file for storing project insights
+   - Learning from previous interactions
+   - Remembering project-specific patterns
+   - Reducing repetitive explanations
 
 ## Contributing
 
-To contribute to the project, start by exploring [open issues](https://github.com/cline/cline/issues) or checking our [feature request board](https://github.com/cline/cline/discussions/categories/feature-requests?discussions_q=is%3Aopen+category%3A%22Feature+Requests%22+sort%3Atop). We'd also love to have you join our [Discord](https://discord.gg/cline) to share ideas and connect with other contributors.
-
-<details>
-<summary>Local Development Instructions</summary>
-
-1. Clone the repository _(Requires [git-lfs](https://git-lfs.com/))_:
-    ```bash
-    git clone https://github.com/cline/cline.git
-    ```
-2. Open the project in VSCode:
-    ```bash
-    code cline
-    ```
-3. Install the necessary dependencies for the extension and webview-gui:
-    ```bash
-    npm run install:all
-    ```
-4. Launch by pressing `F5` (or `Run`->`Start Debugging`) to open a new VSCode window with the extension loaded. (You may need to install the [esbuild problem matchers extension](https://marketplace.visualstudio.com/items?itemName=connor4312.esbuild-problem-matchers) if you run into issues building the project.)
-
-</details>
+Contributions are welcome! Please read the contributing guidelines and check existing issues before submitting pull requests.
 
 ## License
 
-[Apache 2.0 © 2024 Cline Bot Inc.](./LICENSE)
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
+
+---
+
+*This fork enhances Cline with specialized code analysis and editing capabilities, with most development performed by Cline itself. The focus is on safe, efficient code modifications through intelligent analysis and precise editing tools.*
