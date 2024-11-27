@@ -54,48 +54,83 @@
         }
       ]
     },
-    
     "configuration": {
-  "title": "Cline",
-  "properties": {
-    "cline.apiProvider": {
-      "type": "string",
-      "enum": ["anthropic", "openrouter"],
-      "default": "anthropic",
-      "description": "The API provider to use"
-    },
-    "cline.apiModelId": {
-      "type": "string",
-      "enum": ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022"],
-      "description": "The model ID to use"
-    },
-    "cline.apiKey": {
+      "title": "Cline",
+      "properties": {
+        "cline.apiProvider": {
+          "type": "string",
+          "enum": [
+            "anthropic"
+          ],
+          "default": "anthropic",
+          "description": "The API provider to use"
+        },
+        "cline.apiModelId": {
+          "type": "string",
+          "enum": [
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-haiku-20241022"
+          ],
+          "description": "The model ID to use"
+        },
+        "cline.apiKey": {
           "type": "string",
           "description": "API Key for Cline (Use 'Cline: Set API Key' command to set securely)",
           "scope": "application"
         },
-    "cline.anthropicBaseUrl": {
-      "type": "string",
-      "description": "Custom base URL for Anthropic API (optional)"
+        "cline.anthropicBaseUrl": {
+          "type": "string",
+          "description": "Custom base URL for Anthropic API (optional)"
+        },
+        "cline.customInstructions": {
+          "type": "string",
+          "description": "Custom instructions added to the system prompt"
+        },
+        "cline.alwaysAllowReadOnly": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically approve read-only operations"
+        },
+        "cline.enabledTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "execute_command",
+              "read_file",
+              "write_to_file",
+              "edit_code_symbols",
+              "edit_go_symbols",
+              "get_go_symbols",
+              "search_files",
+              "list_files",
+              "list_code_definition_names",
+              "browser_action",
+              "ask_followup_question",
+              "attempt_completion",
+              "find_references",
+              "get_code_symbols"
+            ]
+          },
+          "default": [
+            "execute_command",
+            "read_file",
+            "write_to_file",
+            "edit_code_symbols",
+            "edit_go_symbols",
+            "get_go_symbols",
+            "search_files",
+            "list_files",
+            "list_code_definition_names",
+            "ask_followup_question",
+            "attempt_completion",
+            "find_references",
+            "get_code_symbols"
+          ],
+          "description": "List of enabled tools"
+        }
+      }
     },
-    "cline.customInstructions": {
-      "type": "string",
-      "description": "Custom instructions added to the system prompt"
-    },
-    "cline.alwaysAllowReadOnly": {
-      "type": "boolean",
-      "default": false,
-      "description": "Automatically approve read-only operations"
-    },
-    "cline.enabledTools": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      },
-      "description": "List of enabled tools"
-    }
-  }
-},
     "views": {
       "claude-dev-ActivityBar": [
         {

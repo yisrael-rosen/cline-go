@@ -46,7 +46,7 @@ export const SYSTEM_PROMPT = async (
         })
         .join("\n\n")
     : allTools;
-
+    
   const sections = [
     BASE_PROMPT,
     "====",
