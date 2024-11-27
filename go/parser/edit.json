@@ -1,0 +1,10 @@
+{
+    "operation": "edit",
+    "file": "examples/test.go",
+    "edit": {
+        "Path": "examples/test.go",
+        "Symbol": "Process",
+        "EditType": "replace",
+        "Content": "func (s *Service) Process(ctx context.Context) error {\n\treturn fmt.Errorf(\"not implemented\")\n}"
+    }
+}

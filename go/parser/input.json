@@ -1,0 +1,4 @@
+{
+    "operation": "parse",
+    "file": "examples/test.go"
+}
