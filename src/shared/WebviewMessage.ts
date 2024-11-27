@@ -1,10 +1,12 @@
 import { ApiConfiguration, ApiProvider } from "./api"
+import { ToolUseName } from "./ExtensionMessage"
 
 export interface WebviewMessage {
     type:
         | "apiConfiguration"
         | "customInstructions"
         | "alwaysAllowReadOnly"
+        | "enabledTools"
         | "webviewDidLaunch"
         | "newTask"
         | "askResponse"
@@ -25,6 +27,7 @@ export interface WebviewMessage {
     apiConfiguration?: ApiConfiguration;
     images?: string[];
     bool?: boolean;
+    tools?: ToolUseName[];
 }
 
 export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

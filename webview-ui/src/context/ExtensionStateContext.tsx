@@ -5,6 +5,7 @@ import { type ApiConfiguration } from "../../../src/shared/api"
 import { vscode } from "../utils/vscode"
 import { convertTextMateToHljs } from "../utils/textMateToHljs"
 import { findLastIndex } from "../../../src/shared/array"
+import { ToolUseName } from "../types/extension"
 
 interface ExtensionState {
     version: string
@@ -14,6 +15,7 @@ interface ExtensionState {
     apiConfiguration?: ApiConfiguration
     customInstructions?: string
     alwaysAllowReadOnly?: boolean
+    enabledTools?: ToolUseName[]
 }
 
 interface ExtensionStateContextType extends ExtensionState {
@@ -25,6 +27,7 @@ interface ExtensionStateContextType extends ExtensionState {
     setCustomInstructions: (value?: string) => void
     setAlwaysAllowReadOnly: (value: boolean) => void
     setShowAnnouncement: (value: boolean) => void
+    setEnabledTools: (value: ToolUseName[]) => void
 }
 
 const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -35,6 +38,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
         clineMessages: [],
         taskHistory: [],
         shouldShowAnnouncement: false,
+        enabledTools: [],
     })
     const [didHydrateState, setDidHydrateState] = useState(false)
     const [showWelcome, setShowWelcome] = useState(false)
@@ -93,6 +97,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
         setCustomInstructions: (value?: string) => setState((prevState: ExtensionState) => ({ ...prevState, customInstructions: value })),
         setAlwaysAllowReadOnly: (value: boolean) => setState((prevState: ExtensionState) => ({ ...prevState, alwaysAllowReadOnly: value })),
         setShowAnnouncement: (value: boolean) => setState((prevState: ExtensionState) => ({ ...prevState, shouldShowAnnouncement: value })),
+        setEnabledTools: (value: ToolUseName[]) => {
+            setState((prevState: ExtensionState) => ({ ...prevState, enabledTools: value }))
+            vscode.postMessage({ type: "enabledTools", tools: value })
+        },
     }
 
     return <ExtensionStateContext.Provider value={contextValue}>{children}</ExtensionStateContext.Provider>

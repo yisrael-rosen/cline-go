@@ -4,6 +4,7 @@ import { useExtensionState } from "../../context/ExtensionStateContext"
 import { validateApiConfiguration, validateModelId } from "../../utils/validate"
 import { vscode } from "../../utils/vscode"
 import ApiOptions from "./ApiOptions"
+import ToolSelection from "./ToolSelection"
 
 const IS_DEV = false // FIXME: use flags when packaging
 
@@ -19,9 +20,11 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		setCustomInstructions,
 		alwaysAllowReadOnly,
 		setAlwaysAllowReadOnly,
+		enabledTools,
 	} = useExtensionState()
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
+	
 	const handleSubmit = () => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration)
@@ -32,6 +35,9 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 			vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
 			vscode.postMessage({ type: "customInstructions", text: customInstructions })
 			vscode.postMessage({ type: "alwaysAllowReadOnly", bool: alwaysAllowReadOnly })
+			if (enabledTools) {
+				vscode.postMessage({ type: "enabledTools", tools: enabledTools })
+			}
 			onDone()
 		}
 	}
@@ -99,6 +105,8 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 						These instructions are added to the end of the system prompt sent with every request.
 					</p>
 				</div>
+
+				<ToolSelection />
 
 				<div style={{ marginBottom: 5 }}>
 					<VSCodeCheckbox

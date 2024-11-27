@@ -1,3 +1,5 @@
+// WARNING: Due to the length and complexity of this file, it should not be edited by LLMs directly.
+// Manual editing is required to prevent syntax errors and maintain proper functionality.
 import { Anthropic } from "@anthropic-ai/sdk"
 import cloneDeep from "clone-deep"
 import delay from "delay"

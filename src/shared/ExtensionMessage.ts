@@ -139,6 +139,11 @@ export type ExtensionMessageType =
     | "clearTask"
     | "askResponse"
     | "selectImages"
+    | "apiConfiguration"
+    | "customInstructions"
+    | "alwaysAllowReadOnly"
+    | "enabledTools"
+    | "resetState"
 
 export interface ExtensionMessage {
     type: ExtensionMessageType
@@ -150,4 +155,7 @@ export interface ExtensionMessage {
     invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
     filePaths?: string[]
     askResponse?: "messageResponse" | "yesButtonClicked" | "noButtonClicked"
+    apiConfiguration?: any
+    tools?: string[]
+    bool?: boolean
 }
