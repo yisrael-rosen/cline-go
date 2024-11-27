@@ -15,27 +15,33 @@ type Command struct {
 	Edit      *parser.EditRequest `json:"edit,omitempty"`
 }
 
-func validateEditRequest(symbol, editType, content, position, relativeToSymbol string) error {
-	if symbol == "" {
+func validateEditRequest(req *parser.EditRequest) error {
+	if req == nil {
+		return fmt.Errorf("edit request is required")
+	}
+	if req.Symbol == "" {
 		return fmt.Errorf("symbol is required")
 	}
-	if editType == "" {
+	if req.EditType == "" {
 		return fmt.Errorf("edit type is required")
 	}
-	if editType != "replace" && editType != "insert" && editType != "delete" {
+	if req.EditType != "replace" && req.EditType != "insert" && req.EditType != "delete" {
 		return fmt.Errorf("invalid edit type: must be 'replace', 'insert', or 'delete'")
 	}
-	if editType != "delete" && content == "" {
-		return fmt.Errorf("content is required for %s operations", editType)
+	if req.EditType != "delete" && req.Content == "" {
+		return fmt.Errorf("content is required for %s operations", req.EditType)
 	}
-	if editType == "insert" {
-		if position == "" {
+	if req.EditType == "insert" {
+		if req.Insert == nil {
+			return fmt.Errorf("insert configuration is required for insert operations")
+		}
+		if req.Insert.Position == "" {
 			return fmt.Errorf("position is required for insert operations")
 		}
-		if position != "before" && position != "after" {
+		if req.Insert.Position != "before" && req.Insert.Position != "after" {
 			return fmt.Errorf("invalid position: must be 'before' or 'after'")
 		}
-		if relativeToSymbol == "" {
+		if req.Insert.RelativeToSymbol == "" {
 			return fmt.Errorf("relative-to symbol is required for insert operations")
 		}
 	}
@@ -56,14 +62,8 @@ func main() {
 			os.Exit(1)
 		}
 		// Validate the JSON input
-		if cmd.Operation == "edit" && cmd.Edit != nil {
-			if err := validateEditRequest(
-				cmd.Edit.Symbol,
-				cmd.Edit.EditType,
-				cmd.Edit.Content,
-				cmd.Edit.Insert.Position,
-				cmd.Edit.Insert.RelativeToSymbol,
-			); err != nil {
+		if cmd.Operation == "edit" {
+			if err := validateEditRequest(cmd.Edit); err != nil {
 				writeError(err.Error())
 				os.Exit(1)
 			}
@@ -89,12 +89,6 @@ func main() {
 		}
 
 		if *symbol != "" {
-			// Validate command line parameters
-			if err := validateEditRequest(*symbol, *editType, *content, *position, *relativeToSymbol); err != nil {
-				writeError(err.Error())
-				os.Exit(1)
-			}
-
 			cmd.Operation = "edit"
 			editReq := &parser.EditRequest{
 				Path:     *filePath,
@@ -109,6 +103,12 @@ func main() {
 					Position:         *position,
 					RelativeToSymbol: *relativeToSymbol,
 				}
+			}
+
+			// Validate the edit request
+			if err := validateEditRequest(editReq); err != nil {
+				writeError(err.Error())
+				os.Exit(1)
 			}
 
 			cmd.Edit = editReq

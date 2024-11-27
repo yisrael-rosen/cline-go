@@ -36,6 +36,98 @@ func TestEdit(t *testing.T) {
 		validate func(t *testing.T, path string)
 	}{
 		{
+			name: "replace function with multi-line comment",
+			initial: `package test
+// Process handles data
+// This is a legacy implementation
+// @deprecated: use ProcessV2 instead
+func Process(data []byte) error {
+	return nil
+}`,
+			req: EditRequest{
+				Symbol:   "Process",
+				EditType: "replace",
+				Content: `// Process handles data with context
+// This is the new implementation that:
+// - Supports context
+// - Provides better error handling
+// - Follows new standards
+func Process(ctx context.Context, data []byte) error {
+	return nil
+}`,
+			},
+			want: EditResult{
+				Success: true,
+			},
+			validate: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "handles data with context") {
+					t.Error("New first line comment not added")
+				}
+				if !strings.Contains(contentStr, "Supports context") {
+					t.Error("New bullet point comments not added")
+				}
+				if strings.Contains(contentStr, "@deprecated") {
+					t.Error("Old comment still present")
+				}
+				if !strings.Contains(contentStr, "ctx context.Context") {
+					t.Error("Context parameter not added")
+				}
+			},
+		},
+		{
+			name: "insert method with block comment before target",
+			initial: `package test
+// Service handles operations
+type Service struct{}
+
+/* Process performs the main operation
+   with multi-line processing logic */
+func (s *Service) Process() error {
+	return nil
+}`,
+			req: EditRequest{
+				Symbol:   "Validate",
+				EditType: "insert",
+				Content: `/* Validate ensures data integrity by:
+   - Checking format
+   - Validating constraints
+   - Verifying permissions */
+func (s *Service) Validate() error {
+	return nil
+}`,
+				Insert: &InsertConfig{
+					Position:         "before",
+					RelativeToSymbol: "Process",
+				},
+			},
+			want: EditResult{
+				Success: true,
+			},
+			validate: func(t *testing.T, path string) {
+				content, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				contentStr := string(content)
+				if !strings.Contains(contentStr, "Validate ensures data integrity") {
+					t.Error("New block comment not added")
+				}
+				if !strings.Contains(contentStr, "- Checking format") {
+					t.Error("Comment bullet points not preserved")
+				}
+				validateIdx := strings.Index(contentStr, "Validate")
+				processIdx := strings.Index(contentStr, "Process")
+				if validateIdx > processIdx {
+					t.Error("Method not added before target")
+				}
+			},
+		},
+		{
 			name: "add context parameter",
 			initial: `package test
 // Process processes data without context

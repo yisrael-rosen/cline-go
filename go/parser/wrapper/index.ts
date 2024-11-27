@@ -11,10 +11,16 @@ interface Symbol {
     children?: Symbol[];
 }
 
+export interface InsertConfig {
+    position: 'before' | 'after';
+    relativeToSymbol: string;
+}
+
 export interface EditRequest {
     symbolName: string;
     editType: 'replace' | 'insert' | 'delete';
     newContent?: string;
+    insert?: InsertConfig;
 }
 
 interface ParseResult {
@@ -36,7 +42,7 @@ export class GoParser {
         // Use absolute path to the binary
         const platform = os.platform();
         const ext = platform === 'win32' ? '.exe' : '';
-        this.binaryPath = path.resolve(process.cwd(), 'dist', 'bin', 'goparser' + ext);
+        this.binaryPath = path.resolve(process.cwd(), 'dist', 'bin', `goparser${ext}`);
         console.log('Initialized GoParser with binary path:', this.binaryPath);
     }
 
@@ -64,25 +70,50 @@ export class GoParser {
         console.log('Editing file:', absolutePath);
         console.log('Edit request:', JSON.stringify(edit, null, 2));
         
+        // Validate insert configuration
+        if (edit.editType === 'insert') {
+            if (!edit.insert) {
+                return {
+                    success: false,
+                    error: 'Insert configuration is required for insert operations'
+                };
+            }
+            if (edit.insert.position !== 'before' && edit.insert.position !== 'after') {
+                return {
+                    success: false,
+                    error: 'Invalid Position: must be "before" or "after"'
+                };
+            }
+        }
+        
         const command = {
             operation: 'edit',
             file: absolutePath,
             edit: {
                 Path: absolutePath,
+                EditType: edit.editType,
                 Symbol: edit.symbolName,
                 Content: edit.newContent,
-                Position: edit.editType === 'insert' ? 'after' : undefined
+                Insert: edit.editType === 'insert' ? {
+                    Position: edit.insert?.position,
+                    RelativeToSymbol: edit.insert?.relativeToSymbol
+                } : undefined
             }
         };
 
         console.log('Sending command:', JSON.stringify(command, null, 2));
-        return this.runCommand(command) as Promise<EditResult>;
+        const result = await this.runCommand(command);
+        return {
+            success: result.Success,
+            content: result.Content,
+            error: result.Error
+        };
     }
 
     /**
      * Run a command through the Go parser binary
      */
-    private runCommand(command: any): Promise<ParseResult | EditResult> {
+    private runCommand(command: any): Promise<any> {
         return new Promise((resolve, reject) => {
             console.log('Running command with binary:', this.binaryPath);
             console.log('Current working directory:', process.cwd());
@@ -120,8 +151,15 @@ export class GoParser {
                 }
 
                 try {
-                    console.log('Parsing JSON result:', stdout);
-                    const result = JSON.parse(stdout.replace(/([{,])\s*([a-zA-Z0-9_]+)\s*:/g, '$1"$2":'));
+                    // Extract only the JSON part from stdout
+                    const jsonMatch = stdout.match(/\{.*\}/s);
+                    if (!jsonMatch) {
+                        reject(new Error('No JSON found in output'));
+                        return;
+                    }
+                    const jsonStr = jsonMatch[0];
+                    console.log('Parsing JSON result:', jsonStr);
+                    const result = JSON.parse(jsonStr);
                     console.log('Parsed result:', JSON.stringify(result, null, 2));
                     resolve(result);
                 } catch (err) {

@@ -100,14 +100,10 @@ func findSymbol(file *ast.File, symbolName string) (ast.Decl, bool) {
 
 // Edit performs the requested code edit operation
 func Edit(req EditRequest) EditResult {
-	fmt.Printf("DEBUG: Starting edit operation\n")
-	fmt.Printf("DEBUG: EditType: %s\n", req.EditType)
-	fmt.Printf("DEBUG: Symbol: %s\n", req.Symbol)
 	if req.EditType == "insert" && req.Insert != nil {
 		fmt.Printf("DEBUG: Insert config - Position: %s, RelativeToSymbol: %s\n",
 			req.Insert.Position, req.Insert.RelativeToSymbol)
 	}
-	fmt.Printf("DEBUG: Content:\n%s\n", req.Content)
 
 	// Validate request
 	if err := validateRequest(req); err != nil {
@@ -128,7 +124,6 @@ func Edit(req EditRequest) EditResult {
 			Error:   fmt.Sprintf("Failed to read file: %v", err),
 		}
 	}
-	fmt.Printf("DEBUG: Original file content:\n%s\n", string(content))
 
 	file, err := parseFile(fset, req.Path, content)
 	if err != nil {
@@ -171,7 +166,6 @@ func Edit(req EditRequest) EditResult {
 	if req.EditType == "insert" {
 		targetSymbol = req.Insert.RelativeToSymbol
 	}
-	fmt.Printf("DEBUG: Looking for target symbol: %s\n", targetSymbol)
 
 	targetDecl, found := findSymbol(file, targetSymbol)
 	if !found {
@@ -180,7 +174,6 @@ func Edit(req EditRequest) EditResult {
 			Error:   fmt.Sprintf("Symbol not found: %s", targetSymbol),
 		}
 	}
-	fmt.Printf("DEBUG: Found target symbol\n")
 
 	// Create new declarations list
 	var newDecls []ast.Decl
@@ -256,7 +249,6 @@ func Edit(req EditRequest) EditResult {
 	}
 
 	resultStr := buf.String()
-	fmt.Printf("DEBUG: Final result:\n%s\n", resultStr)
 
 	// Write the result back to the file
 	if err := os.WriteFile(req.Path, []byte(resultStr), 0644); err != nil {

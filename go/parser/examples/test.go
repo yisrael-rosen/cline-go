@@ -1,17 +1,11 @@
-package main
+package test
 
-import "fmt"
+// Service handles operations
+type Service struct{}
 
-// ProcessData handles data processing
-func ProcessData(data []byte) error {
-	if len(data) == 0 {
-		return fmt.Errorf("empty data")
-	}
+func (s *Service) Process(
+
+// Process handles data processing
+ctx context.Context) error {
 	return nil
-}
-
-// User represents a system user
-type User struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
 }
