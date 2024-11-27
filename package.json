@@ -84,7 +84,8 @@
         },
         "cline.customInstructions": {
           "type": "string",
-          "description": "Custom instructions added to the system prompt"
+          "description": "Custom instructions added to the system prompt",
+          "editPresentation": "multilineText"
         },
         "cline.alwaysAllowReadOnly": {
           "type": "boolean",
