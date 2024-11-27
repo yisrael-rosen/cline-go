@@ -2,167 +2,48 @@ package parser
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
-	"go/format"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"os"
-	"regexp"
 )
 
-// Edit performs the requested code edit
-func Edit(req EditRequest) EditResult {
-	// First validate the new content
-	fset := token.NewFileSet()
-	_, err := parser.ParseFile(fset, "", "package temp\n"+req.Content, parser.ParseComments)
-	if err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to parse new content: " + err.Error(),
-		}
-	}
-
-	// Read the original file content
-	content, err := os.ReadFile(req.Path)
-	if err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to read file: " + err.Error(),
-		}
-	}
-
-	// Parse the source file
-	file, err := parser.ParseFile(fset, req.Path, content, parser.ParseComments)
-	if err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to parse file: " + err.Error(),
-		}
-	}
-
-	// Find the target symbol and its parent
-	var (
-		target ast.Node
-		parent ast.Node
-	)
-	ast.Inspect(file, func(n ast.Node) bool {
-		if n == nil {
-			return true
-		}
-
-		switch v := n.(type) {
-		case *ast.FuncDecl:
-			if v.Name.Name == req.Symbol {
-				target = v
-				return false
-			}
-		case *ast.TypeSpec:
-			if v.Name.Name == req.Symbol {
-				target = v
-				parent = findParentGenDecl(file, v)
-				return false
-			}
-		case *ast.GenDecl:
-			for _, spec := range v.Specs {
-				switch s := spec.(type) {
-				case *ast.TypeSpec:
-					if s.Name.Name == req.Symbol {
-						target = s
-						parent = v
-						return false
-					}
-				case *ast.ValueSpec:
-					for _, name := range s.Names {
-						if name.Name == req.Symbol {
-							target = s
-							parent = v
-							return false
-						}
-					}
-				}
-			}
-		}
-		return true
-	})
-
-	if target == nil {
-		return EditResult{
-			Success: false,
-			Error:   "Symbol not found: " + req.Symbol,
-		}
-	}
-
-	// Get the target's source text range
-	var targetStart, targetEnd token.Position
-	if parent != nil {
-		targetStart = fset.Position(parent.Pos())
-		targetEnd = fset.Position(parent.End())
-	} else {
-		targetStart = fset.Position(target.Pos())
-		targetEnd = fset.Position(target.End())
-	}
-
-	// Find and remove any comments before the target
-	contentStr := string(content)
-	lines := bytes.Split(content, []byte("\n"))
-	startLine := targetStart.Line - 1
-	for startLine > 0 && isComment(string(lines[startLine-1])) {
-		startLine--
-	}
-
-	// Create the replacement text
-	var replacement string
-	switch req.Position {
-	case "before":
-		replacement = req.Content + "\n\n" + contentStr[targetStart.Offset:targetEnd.Offset]
-	case "after":
-		replacement = contentStr[targetStart.Offset:targetEnd.Offset] + "\n\n" + req.Content
-	default:
-		replacement = req.Content
-	}
-
-	// Replace the target text including its comments
-	newContent := contentStr[:fset.Position(file.Package).Offset] + // Keep package declaration
-		contentStr[fset.Position(file.Package).Offset:bytes.Index(content, lines[startLine])] + // Keep imports
-		replacement +
-		contentStr[targetEnd.Offset:] // Keep rest of file
-
-	// Parse the modified content
-	newFile, err := parser.ParseFile(fset, req.Path, newContent, parser.ParseComments)
-	if err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to parse modified content: " + err.Error(),
-		}
-	}
-
-	// Format the modified AST
-	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, newFile); err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to format modified code: " + err.Error(),
-		}
-	}
-
-	// Write the result back to the file
-	if err := os.WriteFile(req.Path, buf.Bytes(), 0644); err != nil {
-		return EditResult{
-			Success: false,
-			Error:   "Failed to write file: " + err.Error(),
-		}
-	}
-
-	return EditResult{
-		Success: true,
-		Content: buf.String(),
-	}
+// parseFile parses a Go source file and returns the AST
+func parseFile(fset *token.FileSet, path string, src interface{}) (*ast.File, error) {
+	return parser.ParseFile(fset, path, src, parser.ParseComments)
 }
 
-func isComment(line string) bool {
-	return regexp.MustCompile(`^\s*//`).MatchString(line)
+// validateRequest checks if the EditRequest is valid
+func validateRequest(req EditRequest) error {
+	if req.EditType == "" {
+		return fmt.Errorf("EditType is required")
+	}
+	if req.EditType != "replace" && req.EditType != "insert" && req.EditType != "delete" {
+		return fmt.Errorf("Invalid EditType: must be 'replace', 'insert', or 'delete'")
+	}
+	if req.Symbol == "" {
+		return fmt.Errorf("Symbol is required")
+	}
+	if req.EditType != "delete" && req.Content == "" {
+		return fmt.Errorf("Content is required for %s operations", req.EditType)
+	}
+	if req.EditType == "insert" {
+		if req.Insert == nil {
+			return fmt.Errorf("Insert configuration is required for insert operations")
+		}
+		if req.Insert.Position != "before" && req.Insert.Position != "after" {
+			return fmt.Errorf("Invalid Position in Insert config: must be 'before' or 'after'")
+		}
+		if req.Insert.RelativeToSymbol == "" {
+			return fmt.Errorf("RelativeToSymbol is required in Insert config")
+		}
+	}
+	return nil
 }
 
+// findParentGenDecl finds the parent GenDecl for a given TypeSpec
 func findParentGenDecl(file *ast.File, target ast.Node) *ast.GenDecl {
 	var parent *ast.GenDecl
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -182,14 +63,211 @@ func findParentGenDecl(file *ast.File, target ast.Node) *ast.GenDecl {
 	return parent
 }
 
-func containsNode(parent, target ast.Node) bool {
-	found := false
-	ast.Inspect(parent, func(n ast.Node) bool {
-		if n == target {
-			found = true
+// findSymbol looks for a symbol in the AST and returns its declaration
+func findSymbol(file *ast.File, symbolName string) (ast.Decl, bool) {
+	var targetDecl ast.Decl
+	var found bool
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if found {
 			return false
+		}
+		if n == nil {
+			return true
+		}
+
+		switch v := n.(type) {
+		case *ast.FuncDecl:
+			if v.Name.Name == symbolName {
+				targetDecl = v
+				found = true
+				return false
+			}
+		case *ast.TypeSpec:
+			if v.Name.Name == symbolName {
+				if genDecl := findParentGenDecl(file, v); genDecl != nil {
+					targetDecl = genDecl
+					found = true
+					return false
+				}
+			}
 		}
 		return true
 	})
-	return found
+
+	return targetDecl, found
+}
+
+// Edit performs the requested code edit operation
+func Edit(req EditRequest) EditResult {
+	fmt.Printf("DEBUG: Starting edit operation\n")
+	fmt.Printf("DEBUG: EditType: %s\n", req.EditType)
+	fmt.Printf("DEBUG: Symbol: %s\n", req.Symbol)
+	if req.EditType == "insert" && req.Insert != nil {
+		fmt.Printf("DEBUG: Insert config - Position: %s, RelativeToSymbol: %s\n",
+			req.Insert.Position, req.Insert.RelativeToSymbol)
+	}
+	fmt.Printf("DEBUG: Content:\n%s\n", req.Content)
+
+	// Validate request
+	if err := validateRequest(req); err != nil {
+		return EditResult{
+			Success: false,
+			Error:   err.Error(),
+		}
+	}
+
+	// Create a new token.FileSet for this operation
+	fset := token.NewFileSet()
+
+	// Read and parse the original file
+	content, err := os.ReadFile(req.Path)
+	if err != nil {
+		return EditResult{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to read file: %v", err),
+		}
+	}
+	fmt.Printf("DEBUG: Original file content:\n%s\n", string(content))
+
+	file, err := parseFile(fset, req.Path, content)
+	if err != nil {
+		return EditResult{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to parse file: %v", err),
+		}
+	}
+
+	// For replace and insert operations, parse the new content
+	var newDecl ast.Decl
+	var newComment *ast.CommentGroup
+	if req.EditType != "delete" {
+		// Parse new content with the same package name
+		newContent := fmt.Sprintf("package %s\n%s", file.Name.Name, req.Content)
+		newFile, err := parseFile(fset, "", newContent)
+		if err != nil {
+			return EditResult{
+				Success: false,
+				Error:   fmt.Sprintf("Failed to parse new content: %v", err),
+			}
+		}
+
+		if len(newFile.Decls) == 0 {
+			return EditResult{
+				Success: false,
+				Error:   "No declaration found in new content",
+			}
+		}
+		newDecl = newFile.Decls[0]
+
+		// Get the comment from the new content
+		if len(newFile.Comments) > 0 {
+			newComment = newFile.Comments[0]
+		}
+	}
+
+	// Find the target symbol
+	targetSymbol := req.Symbol
+	if req.EditType == "insert" {
+		targetSymbol = req.Insert.RelativeToSymbol
+	}
+	fmt.Printf("DEBUG: Looking for target symbol: %s\n", targetSymbol)
+
+	targetDecl, found := findSymbol(file, targetSymbol)
+	if !found {
+		return EditResult{
+			Success: false,
+			Error:   fmt.Sprintf("Symbol not found: %s", targetSymbol),
+		}
+	}
+	fmt.Printf("DEBUG: Found target symbol\n")
+
+	// Create new declarations list
+	var newDecls []ast.Decl
+
+	// Build new declarations list
+	for _, decl := range file.Decls {
+		if decl == targetDecl {
+			switch req.EditType {
+			case "replace":
+				if newComment != nil {
+					switch d := newDecl.(type) {
+					case *ast.FuncDecl:
+						d.Doc = newComment
+					case *ast.GenDecl:
+						d.Doc = newComment
+					}
+				}
+				newDecls = append(newDecls, newDecl)
+			case "insert":
+				if req.Insert.Position == "before" {
+					fmt.Printf("DEBUG: Inserting before target\n")
+					if newComment != nil {
+						switch d := newDecl.(type) {
+						case *ast.FuncDecl:
+							d.Doc = newComment
+						case *ast.GenDecl:
+							d.Doc = newComment
+						}
+					}
+					newDecls = append(newDecls, newDecl)
+					newDecls = append(newDecls, decl)
+				} else {
+					fmt.Printf("DEBUG: Inserting after target\n")
+					newDecls = append(newDecls, decl)
+					if newComment != nil {
+						switch d := newDecl.(type) {
+						case *ast.FuncDecl:
+							d.Doc = newComment
+						case *ast.GenDecl:
+							d.Doc = newComment
+						}
+					}
+					newDecls = append(newDecls, newDecl)
+				}
+			case "delete":
+				fmt.Printf("DEBUG: Skipping declaration (delete)\n")
+				continue
+			}
+		} else {
+			newDecls = append(newDecls, decl)
+		}
+	}
+
+	// Create new file with updated declarations
+	resultFile := &ast.File{
+		Name:    file.Name,
+		Decls:   newDecls,
+		Scope:   file.Scope,
+		Imports: file.Imports,
+	}
+
+	// Format the result
+	var buf bytes.Buffer
+	cfg := &printer.Config{
+		Mode:     printer.UseSpaces | printer.TabIndent,
+		Tabwidth: 8,
+	}
+	if err := cfg.Fprint(&buf, fset, resultFile); err != nil {
+		return EditResult{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to format modified code: %v", err),
+		}
+	}
+
+	resultStr := buf.String()
+	fmt.Printf("DEBUG: Final result:\n%s\n", resultStr)
+
+	// Write the result back to the file
+	if err := os.WriteFile(req.Path, []byte(resultStr), 0644); err != nil {
+		return EditResult{
+			Success: false,
+			Error:   fmt.Sprintf("Failed to write file: %v", err),
+		}
+	}
+
+	return EditResult{
+		Success: true,
+		Content: resultStr,
+	}
 }
