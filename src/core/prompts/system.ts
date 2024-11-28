@@ -10,6 +10,7 @@ import { RULES } from "./sections/rules";
 import { getAllTools } from "./sections/tools";
 import { OBJECTIVE } from "./sections/objective";
 import { ToolUseName } from "../../shared/ExtensionMessage";
+import { TemplateConfig, TemplateManager } from "./templates";
 
 export interface ProjectConfig {
   // Project-specific configurations
@@ -17,6 +18,7 @@ export interface ProjectConfig {
   customInstructions?: string;
   enabledTools?: ToolUseName[];
   projectSpecificPrompts?: Record<string, string>;
+  templateConfig?: TemplateConfig;
 }
 
 export const addCustomInstructions = (customInstructions: string): string => {
@@ -70,13 +72,40 @@ Current Working Directory: ${cwd.toPosix()}`,
     OBJECTIVE
   ];
 
-  // Add project-specific sections if configured
+  // Initialize template manager if template config exists
+  const templateManager = projectConfig?.templateConfig 
+    ? new TemplateManager(projectConfig.templateConfig)
+    : undefined;
+
+  // Add active template content if available
+  const activeTemplate = templateManager?.getActiveTemplate();
+  if (activeTemplate?.content) {
+    sections.push(
+      "====",
+      `TEMPLATE: ${activeTemplate.name}`,
+      activeTemplate.content
+    );
+  }
+
+  // Add project-specific custom instructions if configured
+  // This is kept separate from templates to maintain backward compatibility
   if (projectConfig?.customInstructions) {
     sections.push(
       "====",
       "USER'S CUSTOM INSTRUCTIONS",
       projectConfig.customInstructions
     );
+  }
+
+  // Add project-specific prompts if configured
+  if (projectConfig?.projectSpecificPrompts) {
+    Object.entries(projectConfig.projectSpecificPrompts).forEach(([key, value]) => {
+      sections.push(
+        "====",
+        key.toUpperCase(),
+        value
+      );
+    });
   }
 
   return sections.filter(Boolean).join("\n\n");
