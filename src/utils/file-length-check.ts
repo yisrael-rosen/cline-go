@@ -39,8 +39,10 @@ export interface FileLengthCheckResult {
     if (availableTools.includes('find_references')) editingTools.push('find_references');
   
     const toolMessage = editingTools.length > 0 
-      ? `\n\nConsider using these available tools instead:\n${editingTools.join('\n')}`
-      : '';
+      ? `\n\nConsider using these available tools instead:\n${editingTools.join('\n')} \n 
+If the tools aren't suitable for the task, then:
+Instead of writing directly to the file, please:`
+      : 'Instead of writing directly to the file, please:';
   
       return {
         isOverThreshold: true,
@@ -49,12 +51,10 @@ export interface FileLengthCheckResult {
     
     ${toolMessage}
     
-    Instead of writing directly to the file, please:
-    1. Review your changes and ensure they are necessary
-    2. Consider if any code can be simplified
-    3. Remove any redundant or unused code
-    4. If the changes are still needed, provide them in your response and I will help review them
     
-    Please provide your changes in the response and I will help ensure they are properly formatted and necessary.`
+1. Show the code changes
+2. Specify which functions/sections need to be modified
+3. Provide clear integration instructions
+4. List any available tools that could help`
       };
   }
