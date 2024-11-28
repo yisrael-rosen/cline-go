@@ -23,7 +23,8 @@ import { combineApiRequests } from "../shared/combineApiRequests"
 import { combineCommandSequences } from "../shared/combineCommandSequences"
 import { editCodeWithSymbols, canEditWithSymbols, getCodeSymbols, EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
 import { GoParser, EditRequest } from "../../go/parser/wrapper"
-import { getGoSymbols, GoSymbol,formatGoSymbols } from '../services/go/get-go-symbols';
+import { getGoSymbols, GoSymbol, formatGoSymbols } from '../services/go/get-go-symbols';
+import { checkFileLength } from "../utils/file-length-check";
 
 import {
 	BrowserAction,
@@ -198,10 +199,10 @@ export class Cline {
 			const taskMessage = this.clineMessages[0] // first message is always the task say
 			const lastRelevantMessage =
 				this.clineMessages[
-					findLastIndex(
-						this.clineMessages,
-						(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
-					)
+				findLastIndex(
+					this.clineMessages,
+					(m) => !(m.ask === "resume_task" || m.ask === "resume_completed_task")
+				)
 				]
 			await this.providerRef.deref()?.updateTaskHistory({
 				id: this.taskId,
@@ -384,8 +385,7 @@ export class Cline {
 	async sayAndCreateMissingParamError(toolName: ToolUseName, paramName: string, relPath?: string) {
 		await this.say(
 			"error",
-			`Cline tried to use ${toolName}${
-				relPath ? ` for '${relPath.toPosix()}'` : ""
+			`Cline tried to use ${toolName}${relPath ? ` for '${relPath.toPosix()}'` : ""
 			} without value for required parameter '${paramName}'. Retrying...`
 		)
 		return formatResponse.toolError(formatResponse.missingToolParameterError(paramName))
@@ -620,10 +620,9 @@ export class Cline {
 		newUserContent.push({
 			type: "text",
 			text:
-				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${
-					wasRecent
-						? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
-						: ""
+				`[TASK RESUMPTION] This task was interrupted ${agoText}. It may or may not be complete, so please reassess the task context. Be aware that the project state may have changed since then. The current working directory is now '${cwd.toPosix()}'. If the task has not been completed, retry the last step before interruption and proceed with completing the task.\n\nNote: If you previously attempted a tool use that the user did not provide a result for, you should assume the tool use was not successful and assess whether you should retry. If the last tool was a browser_action, the browser has been closed and you must launch a new browser if needed.${wasRecent
+					? "\n\nIMPORTANT: If the last tool use was a write_to_file that was interrupted, the file was reverted back to its original state before the interrupted edit, and you do NOT need to re-read the file as you already have its up-to-date contents."
+					: ""
 				}` +
 				(responseText
 					? `\n\nNew instructions for task continuation:\n<user_message>\n${responseText}\n</user_message>`
@@ -735,8 +734,7 @@ export class Cline {
 			return [
 				true,
 				formatResponse.toolResult(
-					`Command is still running in the user's terminal.${
-						result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+					`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 					}\n\nThe user provided the following feedback:\n<feedback>\n${userFeedback.text}\n</feedback>`,
 					userFeedback.images
 				),
@@ -748,8 +746,7 @@ export class Cline {
 		} else {
 			return [
 				false,
-				`Command is still running in the user's terminal.${
-					result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
+				`Command is still running in the user's terminal.${result.length > 0 ? `\nHere's the output so far:\n${result}` : ""
 				}\n\nYou will be updated on the terminal status and new output in the future.`,
 			]
 		}
@@ -786,9 +783,9 @@ export class Cline {
 			// awaiting first chunk to see if it will throw an error
 			const firstChunk = await iterator.next()
 			if (!firstChunk.done && firstChunk.value) {
-    			yield firstChunk.value
+				yield firstChunk.value
 			} else {
-    			throw new Error("No value in first chunk")
+				throw new Error("No value in first chunk")
 			}
 		} catch (error) {
 			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
@@ -886,15 +883,15 @@ export class Cline {
 				const toolDescription = () => {
 					switch (block.name) {
 						case "get_code_symbols":
-    						return `[${block.name} for '${block.params.path}']`
+							return `[${block.name} for '${block.params.path}']`
 						case "get_go_symbols":
-    						return `[${block.name} for '${block.params.path}']`
+							return `[${block.name} for '${block.params.path}']`
 						case "edit_code_symbols":
-    						return `[${block.name} for '${block.params.path}']`
+							return `[${block.name} for '${block.params.path}']`
 						case "edit_go_symbols":
-    						return `[${block.name} for '${block.params.path}']`
+							return `[${block.name} for '${block.params.path}']`
 						case "find_references":
-    						return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
+							return `[${block.name} for '${block.params.symbol}' in '${block.params.path}']`
 						case "execute_command":
 							return `[${block.name} for '${block.params.command}']`
 						case "read_file":
@@ -902,9 +899,8 @@ export class Cline {
 						case "write_to_file":
 							return `[${block.name} for '${block.params.path}']`
 						case "search_files":
-							return `[${block.name} for '${block.params.regex}'${
-								block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
-							}]`
+							return `[${block.name} for '${block.params.regex}'${block.params.file_pattern ? ` in '${block.params.file_pattern}'` : ""
+								}]`
 						case "list_files":
 							return `[${block.name} for '${block.params.path}']`
 						case "list_code_definition_names":
@@ -1042,7 +1038,7 @@ export class Cline {
 							tool: "getGoSymbols",
 							path: getReadablePath(cwd, removeClosingTag("path", relPath))
 						}
-					
+
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -1052,7 +1048,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1061,33 +1057,33 @@ export class Cline {
 									pushToolResult(await this.sayAndCreateMissingParamError("get_go_symbols", "path"))
 									break
 								}
-					
+
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
-					
+
 								// Verify file extension is .go
 								if (!absolutePath.endsWith('.go')) {
 									pushToolResult(`File '${relPath}' is not a Go file. This tool can only be used with .go files.`)
 									break
 								}
-					
+
 								try {
 									// Get Go symbols using the existing getGoSymbols function
 									const result = await getGoSymbols(absolutePath)
-									
+
 									if (!result.success || !result.symbols) {
 										pushToolResult(`Failed to get Go symbols: ${result.error || 'Unknown error'}`)
 										break
 									}
-					
+
 									// Format the symbols into a readable structure
 									const symbolsResult = formatGoSymbols(result.symbols)
-									
+
 									const completeMessage = JSON.stringify({
 										...sharedMessageProps,
 										content: symbolsResult
 									} satisfies ClineSayTool)
-					
+
 									if (this.alwaysAllowReadOnly) {
 										await this.say("tool", completeMessage, undefined, false)
 									} else {
@@ -1096,7 +1092,7 @@ export class Cline {
 											break
 										}
 									}
-									
+
 									pushToolResult(symbolsResult)
 									break
 								} catch (error) {
@@ -1111,7 +1107,7 @@ export class Cline {
 					}
 					case "edit_go_symbols": {
 						const relPath: string | undefined = block.params.path
-						const editType: string | undefined = block.params.edit_type 
+						const editType: string | undefined = block.params.edit_type
 						const symbol: string | undefined = block.params.symbol
 						let content: string | undefined = block.params.content
 						const position: string | undefined = block.params.position
@@ -1121,33 +1117,33 @@ export class Cline {
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 							symbol: removeClosingTag("symbol", symbol)
 						}
-					
+
 						try {
 							if (block.partial) {
 								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
 								break
 							}
-					
+
 							// Validate required parameters
 							if (!editType) {
 								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "edit_type") + 
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "edit_type") +
 									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
 								break
 							}
 							if (!relPath) {
 								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "path") + 
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "path") +
 									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
 								break
 							}
-					
+
 							// Validate edit type
 							if (!['replace', 'insert', 'delete'].includes(editType)) {
 								pushToolResult(`Invalid edit type: ${editType}. Must be 'replace', 'insert', or 'delete'.`)
 								break
 							}
-					
+
 							// Validate required parameters based on operation type
 							if ((editType === 'replace' || editType === 'delete') && !symbol) {
 								this.consecutiveMistakeCount++
@@ -1159,7 +1155,7 @@ export class Cline {
 								pushToolResult(await this.sayAndCreateMissingParamError("edit_go_symbols", "content"))
 								break
 							}
-					
+
 							// Validate insert operation parameters
 							if (editType === 'insert') {
 								if (!position) {
@@ -1177,30 +1173,30 @@ export class Cline {
 									break
 								}
 							}
-					
+
 							const absolutePath = path.resolve(cwd, relPath)
-							
+
 							// Verify file extension is .go
 							if (!absolutePath.endsWith('.go')) {
 								pushToolResult(`File '${relPath}' is not a Go file. This tool can only be used with .go files.`)
 								break
 							}
-					
+
 							try {
 								// Initialize Go parser
 								const goParser = new GoParser()
-					
+
 								// Get the document for diffing
 								const document = await vscode.workspace.openTextDocument(absolutePath)
 								const originalContent = document.getText()
-					
+
 								// Prepare edit request
 								const editRequest: EditRequest = {
 									symbolName: symbol || '',
 									editType: editType as 'replace' | 'insert' | 'delete',
 									newContent: content
 								}
-					
+
 								// Add insert configuration if needed
 								if (editType === 'insert') {
 									editRequest.insert = {
@@ -1208,14 +1204,14 @@ export class Cline {
 										relativeToSymbol: relativeToSymbol!
 									}
 								}
-					
+
 								// Perform the edit
 								const result = await goParser.editSymbol(absolutePath, editRequest)
 								if (!result.success || !result.content) {
 									pushToolResult(`Failed to edit Go symbol: ${result.error || 'Unknown error'}`)
 									break
 								}
-					
+
 								// Show diff preview
 								this.diffViewProvider.editType = "modify"
 								if (!this.diffViewProvider.isEditing) {
@@ -1225,7 +1221,7 @@ export class Cline {
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 								showOmissionWarning(this.diffViewProvider.originalContent || "", result.content)
-					
+
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									diff: formatResponse.createPrettyPatch(
@@ -1234,17 +1230,17 @@ export class Cline {
 										result.content
 									)
 								} satisfies ClineSayTool)
-					
+
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges()
 									break
 								}
-					
+
 								// Apply and save the changes
 								const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
 								this.didEditFile = true
-					
+
 								if (userEdits) {
 									await this.say(
 										"user_feedback_diff",
@@ -1293,29 +1289,29 @@ export class Cline {
 								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
 								break
 							}
-					
+
 							if (!relPath) {
 								this.consecutiveMistakeCount++
 								pushToolResult(await this.sayAndCreateMissingParamError("get_code_symbols", "path"))
 								break
 							}
-							
+
 							const absolutePath = path.resolve(cwd, relPath)
 							const canUseSymbols = await canEditWithSymbols(absolutePath)
 							if (!canUseSymbols) {
 								pushToolResult(`File '${relPath}' cannot be analyzed using symbols.`)
 								break
 							}
-						
+
 							try {
 								const symbols = await getCodeSymbols(absolutePath)
 								const symbolsResult = `File structure for '${relPath}':\n${symbols.map(s => `${s.kind}: ${s.name}`).join('\n')}`
-								
+
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									content: symbolsResult
 								} satisfies ClineSayTool)
-					
+
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", completeMessage, undefined, false)
 								} else {
@@ -1324,7 +1320,7 @@ export class Cline {
 										break
 									}
 								}
-								
+
 								pushToolResult(symbolsResult)
 								break
 							} catch (error) {
@@ -1352,26 +1348,26 @@ export class Cline {
 								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
 								break
 							}
-					
+
 							if (!editType) {
 								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edit_type") + 
-									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
-								break
-							}	
-							if (!relPath) {
-								this.consecutiveMistakeCount++
-								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path") + 
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "edit_type") +
 									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
 								break
 							}
-						
+							if (!relPath) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_code_symbols", "path") +
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+
 							// Validate edit type
 							if (!['replace', 'insert', 'delete'].includes(editType)) {
 								pushToolResult(`Invalid edit type: ${editType}. Must be 'replace', 'insert', or 'delete'.`)
 								break
 							}
-						
+
 							// Validate required parameters based on operation type
 							if ((editType === 'replace' || editType === 'delete') && !symbol) {
 								this.consecutiveMistakeCount++
@@ -1387,19 +1383,19 @@ export class Cline {
 								pushToolResult(`Invalid position: ${position}. Must be 'before' or 'after'.`)
 								break
 							}
-							
+
 							const absolutePath = path.resolve(cwd, relPath)
 							const canUseSymbols = await canEditWithSymbols(absolutePath)
 							if (!canUseSymbols) {
 								pushToolResult(`File '${relPath}' cannot be edited using symbols. Use write_to_file instead.`)
 								break
 							}
-						
+
 							try {
 								// Get the document
 								const document = await vscode.workspace.openTextDocument(absolutePath)
 								const originalContent = document.getText()
-								
+
 								// Generate the modified content
 								const newContent = await editCodeWithSymbols(
 									absolutePath,
@@ -1408,7 +1404,7 @@ export class Cline {
 									content,
 									position as 'before' | 'after' | undefined
 								)
-					
+
 								// Show diff preview
 								this.diffViewProvider.editType = "modify"
 								if (!this.diffViewProvider.isEditing) {
@@ -1418,7 +1414,7 @@ export class Cline {
 								await delay(300) // wait for diff view to update
 								this.diffViewProvider.scrollToFirstDiff()
 								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
-					
+
 								const completeMessage = JSON.stringify({
 									...sharedMessageProps,
 									diff: formatResponse.createPrettyPatch(
@@ -1427,17 +1423,17 @@ export class Cline {
 										newContent
 									)
 								} satisfies ClineSayTool)
-					
+
 								const didApprove = await askApproval("tool", completeMessage)
 								if (!didApprove) {
 									await this.diffViewProvider.revertChanges()
 									break
 								}
-					
+
 								// Apply and save the changes
 								const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
 								this.didEditFile = true
-					
+
 								if (userEdits) {
 									await this.say(
 										"user_feedback_diff",
@@ -1483,27 +1479,21 @@ export class Cline {
 							// wait so we can determine if it's a new file or editing an existing file
 							break
 						}
-						// Check if file exists using cached map or fs.access
-						let fileExists: boolean
-						if (this.diffViewProvider.editType !== undefined) {
-							fileExists = this.diffViewProvider.editType === "modify"
-						} else {
-							const absolutePath = path.resolve(cwd, relPath)
-							fileExists = await fileExistsAtPath(absolutePath)
-							this.diffViewProvider.editType = fileExists ? "modify" : "create"
-						}
-
-						// pre-processing newContent for cases where weaker models might add artifacts like markdown codeblock markers (deepseek/llama) or extra escape characters (gemini)
+					
+						// Get original content first if file exists
+						const absolutePath = path.resolve(cwd, relPath)
+						const fileExists = await fileExistsAtPath(absolutePath)
+						const originalContent = fileExists ? await extractTextFromFile(absolutePath) : '';
+					
+						// Pre-processing newContent
 						if (newContent.startsWith("```")) {
-							// this handles cases where it includes language specifiers like ```python ```js
 							newContent = newContent.split("\n").slice(1).join("\n").trim()
 						}
 						if (newContent.endsWith("```")) {
 							newContent = newContent.split("\n").slice(0, -1).join("\n").trim()
 						}
-
+					
 						if (!this.api.getModel().id.includes("claude")) {
-							// it seems not just llama models are doing this, but also gemini and potentially others
 							if (
 								newContent.includes("&gt;") ||
 								newContent.includes("&lt;") ||
@@ -1515,6 +1505,20 @@ export class Cline {
 									.replace(/&quot;/g, '"')
 							}
 						}
+					
+						// Check file length before proceeding with diff view
+						const availableTools = (await this.providerRef.deref()?.getState())?.enabledTools || [];
+						const lengthCheck = checkFileLength(relPath, originalContent, availableTools);
+						if (lengthCheck.isOverThreshold) {
+							pushToolResult(
+								`Cannot write to file '${relPath}' - ${lengthCheck.message}`
+							);
+							break;
+						}
+					
+						// Continue with normal diff view process
+						this.diffViewProvider.editType = fileExists ? "modify" : "create"
+				
 
 						const sharedMessageProps: ClineSayTool = {
 							tool: fileExists ? "editedExistingFile" : "newFileCreated",
@@ -1524,7 +1528,7 @@ export class Cline {
 							if (block.partial) {
 								// update gui message
 								const partialMessage = JSON.stringify(sharedMessageProps)
-								await this.ask("tool", partialMessage, block.partial).catch(() => {})
+								await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								// update editor
 								if (!this.diffViewProvider.isEditing) {
 									// open the editor and prepare to stream content in
@@ -1554,7 +1558,7 @@ export class Cline {
 								if (!this.diffViewProvider.isEditing) {
 									// show gui message before showing edit animation
 									const partialMessage = JSON.stringify(sharedMessageProps)
-									await this.ask("tool", partialMessage, true).catch(() => {}) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
+									await this.ask("tool", partialMessage, true).catch(() => { }) // sending true for partial even though it's not a partial, this shows the edit row before the content is streamed into the editor
 									await this.diffViewProvider.open(relPath)
 								}
 								await this.diffViewProvider.update(newContent, true)
@@ -1567,10 +1571,10 @@ export class Cline {
 									content: fileExists ? undefined : newContent,
 									diff: fileExists
 										? formatResponse.createPrettyPatch(
-												relPath,
-												this.diffViewProvider.originalContent,
-												newContent
-										  )
+											relPath,
+											this.diffViewProvider.originalContent,
+											newContent
+										)
 										: undefined,
 								} satisfies ClineSayTool)
 								//const didApprove = await askApproval("tool", completeMessage)
@@ -1593,13 +1597,13 @@ export class Cline {
 									)
 									pushToolResult(
 										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
-											`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
-											`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
-											`Please note:\n` +
-											`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
-											`2. Proceed with the task using this updated file content as the new baseline.\n` +
-											`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
-											`${newProblemsMessage}`
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`
 									)
 								} else {
 									pushToolResult(
@@ -1630,7 +1634,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1680,7 +1684,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1728,7 +1732,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1770,7 +1774,7 @@ export class Cline {
 							path: getReadablePath(cwd, removeClosingTag("path", relPath)),
 							symbol: removeClosingTag("symbol", symbol)
 						}
-					
+
 						try {
 							if (block.partial) {
 								const partialMessage = JSON.stringify({
@@ -1780,7 +1784,7 @@ export class Cline {
 								if (this.alwaysAllowReadOnly) {
 									await this.say("tool", partialMessage, undefined, block.partial)
 								} else {
-									await this.ask("tool", partialMessage, block.partial).catch(() => {})
+									await this.ask("tool", partialMessage, block.partial).catch(() => { })
 								}
 								break
 							} else {
@@ -1794,18 +1798,18 @@ export class Cline {
 									pushToolResult(await this.sayAndCreateMissingParamError("find_references", "path"))
 									break
 								}
-					
+
 								this.consecutiveMistakeCount = 0
 								const absolutePath = path.resolve(cwd, relPath)
-					
+
 								// Get the document
 								const document = await vscode.workspace.openTextDocument(absolutePath)
 								const text = document.getText();
-					
+
 								// Find all symbol positions in the document
 								const positions: vscode.Position[] = [];
 								let currentIndex = 0;
-								
+
 								// Find all occurrences of the symbol
 								while (true) {
 									const index = text.indexOf(symbol, currentIndex);
@@ -1814,21 +1818,21 @@ export class Cline {
 									}
 									// Convert offset to position
 									const position = document.positionAt(index);
-									
+
 									// Verify this is a complete symbol by checking word boundaries
 									const range = document.getWordRangeAtPosition(position);
 									if (range && document.getText(range) === symbol) {
 										positions.push(position);
 									}
-									
+
 									currentIndex = index + 1;
 								}
-					
+
 								if (positions.length === 0) {
 									pushToolResult(`Symbol '${symbol}' not found in ${absolutePath}`)
 									break
 								}
-					
+
 								// Try each position until we find one that returns references
 								let foundReferences = false;
 								for (const position of positions) {
@@ -1837,7 +1841,7 @@ export class Cline {
 										document.uri,
 										position
 									) || []
-					
+
 									if (locations.length > 0) {
 										// Format results
 										const references = locations.map(location => {
@@ -1846,12 +1850,12 @@ export class Cline {
 											const character = location.range.start.character + 1
 											return `${relativePath}:${line}:${character}`
 										}).join('\n')
-					
+
 										const completeMessage = JSON.stringify({
 											...sharedMessageProps,
 											content: `Found ${locations.length} references for '${symbol}':\n\n${references}`
 										} satisfies ClineSayTool)
-					
+
 										if (this.alwaysAllowReadOnly) {
 											await this.say("tool", completeMessage, undefined, false)
 										} else {
@@ -1860,13 +1864,13 @@ export class Cline {
 												break
 											}
 										}
-					
+
 										pushToolResult(`Found ${locations.length} references for '${symbol}':\n\n${references}`)
 										foundReferences = true;
 										break
 									}
 								}
-					
+
 								if (!foundReferences) {
 									pushToolResult(`No references found for symbol '${symbol}' in ${absolutePath}`)
 								}
@@ -1900,7 +1904,7 @@ export class Cline {
 										"browser_action_launch",
 										removeClosingTag("url", url),
 										block.partial
-									).catch(() => {})
+									).catch(() => { })
 								} else {
 									await this.say(
 										"browser_action",
@@ -1997,8 +2001,7 @@ export class Cline {
 										await this.say("browser_action_result", JSON.stringify(browserActionResult))
 										pushToolResult(
 											formatResponse.toolResult(
-												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${
-													browserActionResult.logs || "(No new logs)"
+												`The browser action has been executed. The console logs and screenshot have been captured for your analysis.\n\nConsole logs:\n${browserActionResult.logs || "(No new logs)"
 												}\n\n(REMEMBER: if you need to proceed to using non-\`browser_action\` tools or launch a new browser, you MUST first close this browser. For example, if after analyzing the logs and screenshot you need to edit a file, you must first close the browser before you can use the write_to_file tool.)`,
 												browserActionResult.screenshot ? [browserActionResult.screenshot] : []
 											)
@@ -2025,7 +2028,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("command", removeClosingTag("command", command), block.partial).catch(
-									() => {}
+									() => { }
 								)
 								break
 							} else {
@@ -2059,7 +2062,7 @@ export class Cline {
 						try {
 							if (block.partial) {
 								await this.ask("followup", removeClosingTag("question", question), block.partial).catch(
-									() => {}
+									() => { }
 								)
 								break
 							} else {
@@ -2118,7 +2121,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial
-										).catch(() => {})
+										).catch(() => { })
 									} else {
 										// last message is completion_result
 										// we have command string, which means we have the result as well, so finish it (doesnt have to exist yet)
@@ -2132,7 +2135,7 @@ export class Cline {
 											"command",
 											removeClosingTag("command", command),
 											block.partial
-										).catch(() => {})
+										).catch(() => { })
 									}
 								} else {
 									// no command, still outputting partial result
@@ -2358,10 +2361,9 @@ export class Cline {
 							type: "text",
 							text:
 								assistantMessage +
-								`\n\n[${
-									cancelReason === "streaming_failed"
-										? "Response interrupted by API Error"
-										: "Response interrupted by user"
+								`\n\n[${cancelReason === "streaming_failed"
+									? "Response interrupted by API Error"
+									: "Response interrupted by user"
 								}]`,
 						},
 					],
@@ -2615,7 +2617,7 @@ export class Cline {
 			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
 				interval: 100,
 				timeout: 15_000,
-			}).catch(() => {})
+			}).catch(() => { })
 		}
 
 		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
