@@ -2,7 +2,7 @@
   "name": "claude-dev",
   "displayName": "Cline (prev. Claude Dev)",
   "description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-  "version": "2.1.23",
+  "version": "2.1.24",
   "icon": "assets/icons/icon.png",
   "galleryBanner": {
     "color": "#617A91",
@@ -93,42 +93,36 @@
           "description": "Automatically approve read-only operations"
         },
         "cline.enabledTools": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "execute_command",
-              "read_file",
-              "write_to_file",
-              "edit_code_symbols",
-              "edit_go_symbols",
-              "get_go_symbols",
-              "search_files",
-              "list_files",
-              "list_code_definition_names",
-              "browser_action",
-              "ask_followup_question",
-              "attempt_completion",
-              "find_references",
-              "get_code_symbols"
-            ]
+          "type": "object",
+          "properties": {
+            "browser_action": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable browser interaction capabilities"
+            },
+            "edit_code_symbols": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable symbol-based code editing"
+            },
+            "edit_go_symbols": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Go-specific symbol editing"
+            },
+            "get_go_symbols": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable Go symbol analysis"
+            },
+            "get_code_symbols": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable code symbol analysis"
+            }
           },
-          "default": [
-            "execute_command",
-            "read_file",
-            "write_to_file",
-            "edit_code_symbols",
-            "edit_go_symbols",
-            "get_go_symbols",
-            "search_files",
-            "list_files",
-            "list_code_definition_names",
-            "ask_followup_question",
-            "attempt_completion",
-            "find_references",
-            "get_code_symbols"
-          ],
-          "description": "List of enabled tools"
+          "additionalProperties": false,
+          "description": "Configure which optional tools to enable"
         }
       }
     },

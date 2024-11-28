@@ -10,43 +10,54 @@ import { RULES } from "./sections/rules";
 import { getAllTools } from "./sections/tools";
 import { OBJECTIVE } from "./sections/objective";
 import { ToolUseName } from "../../shared/ExtensionMessage";
-import { TemplateConfig, TemplateManager } from "./templates";
+import { ProjectConfig, EnabledTools } from "../../shared/types/project-config";
 
-export interface ProjectConfig {
-  // Project-specific configurations
-  name: string;
-  customInstructions?: string;
-  enabledTools?: ToolUseName[];
-  projectSpecificPrompts?: Record<string, string>;
-  templateConfig?: TemplateConfig;
-  shellOverride?: string; // New option to override detected shell
+// These tools are always available regardless of user settings
+const ALWAYS_ENABLED_TOOLS: ToolUseName[] = [
+  'execute_command',
+  'read_file',
+  'write_to_file',
+  'search_files',
+  'list_files',
+  'list_code_definition_names',
+  'ask_followup_question',
+  'attempt_completion',
+  'find_references'
+];
+
+// Optional tools that can be enabled/disabled
+const OPTIONAL_TOOLS: ToolUseName[] = [
+  'browser_action',
+  'edit_code_symbols',
+  'edit_go_symbols',
+  'get_go_symbols',
+  'get_code_symbols'
+];
+
+export interface SystemConfig extends ProjectConfig {
+  shellOverride?: string;
 }
-
-export const addCustomInstructions = (customInstructions: string): string => {
-  return `
-====
-
-CUSTOM INSTRUCTIONS
-
-${customInstructions.trim()}`;
-};
 
 export const SYSTEM_PROMPT = async (
   cwd: string,
   supportsComputerUse: boolean,
-  projectConfig?: ProjectConfig
+  projectConfig?: SystemConfig
 ): Promise<string> => {
-  // Get all tools and filter based on enabled tools
-  const allTools = getAllTools(cwd, supportsComputerUse);
-  const toolsSection = projectConfig?.enabledTools !== undefined
-  ? allTools
-      .split("\n\n")
-      .filter(section => {
-        const toolMatch = section.match(/^## ([a-z_]+)/);
-        return !toolMatch || projectConfig.enabledTools?.includes(toolMatch[1] as ToolUseName);
+  // Get enabled optional tools
+  const enabledOptionalTools = projectConfig?.enabledTools
+    ? OPTIONAL_TOOLS.filter(tool => {
+        const key = tool as keyof EnabledTools;
+        return projectConfig.enabledTools && projectConfig.enabledTools[key];
       })
-      .join("\n\n")
-  : "";
+    : OPTIONAL_TOOLS;
+
+  // Combine always enabled tools with enabled optional tools
+  const enabledTools = [...ALWAYS_ENABLED_TOOLS, ...enabledOptionalTools] as ToolUseName[];
+
+  // Get all tools and filter based on enabled tools
+  const toolsSection = supportsComputerUse 
+    ? getAllTools(cwd, true, enabledTools)
+    : "";
     
   const sections = [
     BASE_PROMPT,
@@ -56,7 +67,7 @@ export const SYSTEM_PROMPT = async (
     ...(toolsSection ? [toolsSection] : []), // Only include if not empty
     "====",
     "CAPABILITIES",
-    CAPABILITIES(cwd, supportsComputerUse),
+    CAPABILITIES(cwd, supportsComputerUse, projectConfig),
     "====",
     "RULES",
     RULES(cwd),
@@ -71,41 +82,5 @@ Current Working Directory: ${cwd.toPosix()}`,
     OBJECTIVE
   ];
 
-  /* // Initialize template manager if template config exists
-  const templateManager = projectConfig?.templateConfig 
-    ? new TemplateManager(projectConfig.templateConfig)
-    : undefined;
-
-  // Add active template content if available
-  const activeTemplate = templateManager?.getActiveTemplate();
-  if (activeTemplate?.content) {
-    sections.push(
-      "====",
-      `TEMPLATE: ${activeTemplate.name}`,
-      activeTemplate.content
-    );
-  } */
-
-/*   // Add project-specific custom instructions if configured
-  // This is kept separate from templates to maintain backward compatibility
-  if (projectConfig?.customInstructions) {
-    sections.push(
-      "====",
-      "CUSTOM INSTRUCTIONS",
-      projectConfig.customInstructions
-    );
-  } */
-
-/*   // Add project-specific prompts if configured
-  if (projectConfig?.projectSpecificPrompts) {
-    Object.entries(projectConfig.projectSpecificPrompts).forEach(([key, value]) => {
-      sections.push(
-        "====",
-        key.toUpperCase(),
-        value
-      );
-    });
-  }
- */
   return sections.filter(Boolean).join("\n\n");
 };

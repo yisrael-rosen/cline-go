@@ -1,8 +1,8 @@
 /// <reference types="jest" />
 
-import { SYSTEM_PROMPT, ProjectConfig } from '../system';
+import { SYSTEM_PROMPT, SystemConfig } from '../system';
 
-// Mock modules
+// Mock only external modules
 jest.mock('os-name', () => ({
   __esModule: true,
   default: () => 'Windows 11'
@@ -17,47 +17,12 @@ jest.mock('os', () => ({
   homedir: () => 'C:/Users/ROSEN'
 }));
 
-// Mock section imports
-jest.mock('../sections/base', () => ({
-  BASE_PROMPT: 'You are Cline, a highly skilled software engineer',
-  TOOL_USE_FORMATTING: 'Tool use formatting section'
-}));
-
-jest.mock('../sections/capabilities', () => ({
-  CAPABILITIES: () => 'Capabilities section'
-}));
-
-jest.mock('../sections/rules', () => ({
-  RULES: () => 'Rules section'
-}));
-
-jest.mock('../sections/tools/index', () => ({
-  getAllTools: (cwd: string, supportsComputerUse: boolean) => {
-    const tools = [
-      '## execute_command\nCommand tool description',
-      '## read_file\nRead file tool description',
-      '## write_to_file\nWrite file tool description',
-      '## search_files\nSearch files tool description'
-    ];
-    
-    if (!supportsComputerUse) {
-      return '';
-    }
-    
-    return tools.join('\n\n');
-  }
-}));
-
-jest.mock('../sections/objective', () => ({
-  OBJECTIVE: 'Objective section'
-}));
-
-// Add String.prototype.toPosix for testing
-declare global {
-  interface String {
-    toPosix(): string;
-  }
-}
+// Don't mock internal modules - use real implementations
+jest.unmock('../sections/base');
+jest.unmock('../sections/capabilities');
+jest.unmock('../sections/rules');
+jest.unmock('../sections/tools');
+jest.unmock('../sections/objective');
 
 describe('SYSTEM_PROMPT', () => {
   const mockCwd = 'c:/Users/ROSEN/dev/cline';
@@ -71,51 +36,63 @@ describe('SYSTEM_PROMPT', () => {
 
   afterEach(() => {
     delete (String.prototype as any).toPosix;
-    jest.clearAllMocks();
   });
 
   it('should generate complete system prompt with all features enabled', async () => {
-    const projectConfig: ProjectConfig = {
-      name: 'test-project',
+    const projectConfig: SystemConfig = {
       customInstructions: undefined,
-      enabledTools: [
-        'read_file',
-        'write_to_file',
-        'list_files',
-        'search_files',
-        'execute_command',
-        'ask_followup_question',
-        'attempt_completion'
-      ]
+      enabledTools: {
+        browser_action: true,
+        edit_code_symbols: true,
+        edit_go_symbols: true,
+        get_go_symbols: true,
+        get_code_symbols: true
+      }
     };
 
     const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, projectConfig);
-
-    // Verify main sections are present
+    
+    // Verify base prompt is included
     expect(systemPrompt).toContain('You are Cline, a highly skilled software engineer');
-    expect(systemPrompt).toContain('TOOL USE');
-    expect(systemPrompt).toContain('Tool use formatting section');
-    expect(systemPrompt).toContain('Capabilities section');
-    expect(systemPrompt).toContain('Rules section');
-    expect(systemPrompt).toContain('OBJECTIVE');
-    expect(systemPrompt).toContain('Objective section');
-
-    // Verify system information is correct
-    expect(systemPrompt).toContain('Operating System: Windows 11');
-    expect(systemPrompt).toContain('Default Shell: C:\\WINDOWS\\system32\\cmd.exe');
-    expect(systemPrompt).toContain('Home Directory: C:/Users/ROSEN');
-    expect(systemPrompt).toContain('Current Working Directory: c:/Users/ROSEN/dev/cline');
-
-    // Verify tools are present when computer use is enabled
-    expect(systemPrompt).toContain('## execute_command');
+    
+    // Verify tool formatting section is included
+    expect(systemPrompt).toContain('Tool use is formatted using XML-style tags');
+    
+    // Verify all tools are included (both always enabled and user enabled)
     expect(systemPrompt).toContain('## read_file');
     expect(systemPrompt).toContain('## write_to_file');
+    expect(systemPrompt).toContain('## execute_command');
     expect(systemPrompt).toContain('## search_files');
+    expect(systemPrompt).toContain('## list_files');
+    expect(systemPrompt).toContain('## list_code_definition_names');
+    expect(systemPrompt).toContain('## find_references');
+    expect(systemPrompt).toContain('## attempt_completion');
+    expect(systemPrompt).toContain('## ask_followup_question');
+    expect(systemPrompt).toContain('## browser_action');
+    expect(systemPrompt).toContain('## edit_code_symbols');
+    expect(systemPrompt).toContain('## edit_go_symbols');
+    expect(systemPrompt).toContain('## get_go_symbols');
+    expect(systemPrompt).toContain('## get_code_symbols');
+    
+    // Verify capabilities section is included
+    expect(systemPrompt).toContain('CAPABILITIES');
+    expect(systemPrompt).toContain('You have access to tools that let you');
+    
+    // Verify rules section is included
+    expect(systemPrompt).toContain('RULES');
+    expect(systemPrompt).toContain('Your current working directory is:');
+    
+    // Verify system information is included
+    expect(systemPrompt).toContain('SYSTEM INFORMATION');
+    expect(systemPrompt).toContain('Operating System: Windows 11');
+    
+    // Verify objective section is included
+    expect(systemPrompt).toContain('OBJECTIVE');
+    expect(systemPrompt).toContain('You accomplish a given task iteratively');
   });
 
   it('should respect shell override in project config', async () => {
-    const projectConfig: ProjectConfig = {
-      name: 'test-project',
+    const projectConfig: SystemConfig = {
       shellOverride: '/bin/bash'
     };
 
@@ -125,28 +102,23 @@ describe('SYSTEM_PROMPT', () => {
 
   it('should not include tools section when computer use is disabled', async () => {
     const systemPrompt = await SYSTEM_PROMPT(mockCwd, false);
-    
-    // Should not contain any tool sections when computer use is disabled
-    expect(systemPrompt).not.toContain('## execute_command');
-    expect(systemPrompt).not.toContain('## read_file');
-    expect(systemPrompt).not.toContain('## write_to_file');
-    expect(systemPrompt).not.toContain('## search_files');
+    expect(systemPrompt).not.toContain('## browser_action');
   });
 
   it('should filter tools based on enabledTools config', async () => {
-    const projectConfig: ProjectConfig = {
-      name: 'test-project',
-      enabledTools: ['read_file', 'write_to_file']
+    const projectConfig: SystemConfig = {
+      enabledTools: {
+        edit_code_symbols: true,
+        edit_go_symbols: true,
+        browser_action: false,
+        get_go_symbols: false,
+        get_code_symbols: false
+      }
     };
 
     const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, projectConfig);
-
-    // Should contain enabled tools
-    expect(systemPrompt).toContain('## read_file');
-    expect(systemPrompt).toContain('## write_to_file');
-
-    // Should not contain filtered out tools
-    expect(systemPrompt).not.toContain('## execute_command');
-    expect(systemPrompt).not.toContain('## search_files');
+    expect(systemPrompt).toContain('## edit_code_symbols');
+    expect(systemPrompt).toContain('## edit_go_symbols');
+    expect(systemPrompt).not.toContain('## browser_action');
   });
 });

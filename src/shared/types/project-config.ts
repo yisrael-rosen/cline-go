@@ -1,11 +1,22 @@
 /**
+ * Configuration for optional tools
+ */
+export interface EnabledTools {
+  browser_action?: boolean;
+  edit_code_symbols?: boolean;
+  edit_go_symbols?: boolean;
+  get_go_symbols?: boolean;
+  get_code_symbols?: boolean;
+}
+
+/**
  * Configuration for a Cline project
  */
 export interface ProjectConfig {
   /**
-   * List of enabled tool names
+   * Optional tools configuration
    */
-  enabledTools?: string[];
+  enabledTools?: EnabledTools;
 
   /**
    * Custom instructions to be added to the system prompt
