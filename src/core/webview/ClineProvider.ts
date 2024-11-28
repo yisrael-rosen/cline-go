@@ -124,6 +124,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 				if (e && e.affectsConfiguration("workbench.colorTheme")) {
 					await this.postMessageToWebview({ type: "theme", text: JSON.stringify(await getTheme()) })
 				}
+				if (e && e.affectsConfiguration("cline.enabledTools")) {
+					await this.postStateToWebview()
+				}
 			},
 			null,
 			this.disposables

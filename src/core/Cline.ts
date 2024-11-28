@@ -212,6 +212,7 @@ export class Cline {
 				cacheWrites: apiMetrics.totalCacheWrites,
 				cacheReads: apiMetrics.totalCacheReads,
 				totalCost: apiMetrics.totalCost,
+				enabledTools: await this.providerRef.deref()?.getState().then(state => state.enabledTools)
 			})
 		} catch (error) {
 			console.error("Failed to save cline messages:", error)

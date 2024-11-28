@@ -19,6 +19,7 @@ export interface ProjectConfig {
   enabledTools?: ToolUseName[];
   projectSpecificPrompts?: Record<string, string>;
   templateConfig?: TemplateConfig;
+  shellOverride?: string; // New option to override detected shell
 }
 
 export const addCustomInstructions = (customInstructions: string): string => {
@@ -39,22 +40,22 @@ export const SYSTEM_PROMPT = async (
 ): Promise<string> => {
   // Get all tools and filter based on enabled tools
   const allTools = getAllTools(cwd, supportsComputerUse);
-  const toolsSection = projectConfig?.enabledTools 
-    ? allTools
-        .split("\n\n")
-        .filter(section => {
-          const toolMatch = section.match(/^## ([a-z_]+)/);
-          return !toolMatch || projectConfig.enabledTools?.includes(toolMatch[1] as ToolUseName);
-        })
-        .join("\n\n")
-    : allTools;
+  const toolsSection = projectConfig?.enabledTools !== undefined
+  ? allTools
+      .split("\n\n")
+      .filter(section => {
+        const toolMatch = section.match(/^## ([a-z_]+)/);
+        return !toolMatch || projectConfig.enabledTools?.includes(toolMatch[1] as ToolUseName);
+      })
+      .join("\n\n")
+  : "";
     
   const sections = [
     BASE_PROMPT,
     "====",
     "TOOL USE",
     TOOL_USE_FORMATTING,
-    toolsSection,
+    ...(toolsSection ? [toolsSection] : []), // Only include if not empty
     "====",
     "CAPABILITIES",
     CAPABILITIES(cwd, supportsComputerUse),
@@ -64,7 +65,7 @@ export const SYSTEM_PROMPT = async (
     "====",
     "SYSTEM INFORMATION",
     `Operating System: ${osName()}
-Default Shell: ${defaultShell}
+Default Shell: ${projectConfig?.shellOverride || defaultShell}
 Home Directory: ${os.homedir().toPosix()}
 Current Working Directory: ${cwd.toPosix()}`,
     "====",

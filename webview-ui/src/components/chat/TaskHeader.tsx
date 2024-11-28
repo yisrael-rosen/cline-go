@@ -1,9 +1,8 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { memo } from "react"
+import { memo, useMemo } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { anthropicModels } from "../../../../src/shared/api"
-import { ClineMessage } from "../../../../src/shared/ExtensionMessage"
+import { ClineMessage, ToolUseName } from "../../../../src/shared/ExtensionMessage"
 
 interface TaskHeaderProps {
     task: ClineMessage;
@@ -26,16 +25,17 @@ const TaskHeader = ({
     totalCost,
     onClose,
 }: TaskHeaderProps) => {
-	const { apiConfiguration } = useExtensionState()
+	const { apiConfiguration, enabledTools } = useExtensionState()
 
 	return (
 		<div
 			style={{
 				display: "flex",
 				flexDirection: "column",
-				gap: 5,
+				gap: 8,
 				padding: "10px 20px",
 				borderBottom: "1px solid var(--vscode-sideBarSectionHeader-border)",
+				backgroundColor: "var(--vscode-sideBar-background)",
 			}}>
 			<div style={{ display: "flex", alignItems: "center", gap: 5, justifyContent: "space-between" }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -78,6 +78,39 @@ const TaskHeader = ({
 					</div>
 				</div>
 			</div>
+			{enabledTools && enabledTools.length > 0 && (
+				<div style={{
+					display: "flex",
+					gap: 8,
+					fontSize: "11px",
+					color: "var(--vscode-descriptionForeground)",
+					alignItems: "center",
+					flexWrap: "wrap",
+					paddingBottom: 4
+				}}>
+					<span style={{ 
+						fontWeight: 500,
+						display: "flex",
+						alignItems: "center",
+						gap: 4
+					}}>
+						<span className="codicon codicon-tools"></span>
+						Available Tools:
+					</span>
+					{enabledTools.map((tool: ToolUseName) => (
+						<span key={tool} style={{
+							padding: "2px 6px",
+							borderRadius: "3px",
+							backgroundColor: "var(--vscode-badge-background)",
+							color: "var(--vscode-badge-foreground)",
+							fontSize: "10px",
+							letterSpacing: "0.1px"
+						}}>
+							{tool}
+						</span>
+					))}
+				</div>
+			)}
 		</div>
 	)
 }
