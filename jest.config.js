@@ -9,5 +9,8 @@ module.exports = {
     transform: {
         '^.+\\.tsx?$': 'ts-jest'
     },
+    transformIgnorePatterns: [
+        'node_modules/(?!(os-name|default-shell)/)'
+    ],
     moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node']
 };
