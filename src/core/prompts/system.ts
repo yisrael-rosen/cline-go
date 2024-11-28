@@ -26,9 +26,7 @@ export const addCustomInstructions = (customInstructions: string): string => {
   return `
 ====
 
-USER'S CUSTOM INSTRUCTIONS
-
-The following additional instructions are provided by the user, and should be followed to the best of your ability without interfering with the TOOL USE guidelines.
+CUSTOM INSTRUCTIONS
 
 ${customInstructions.trim()}`;
 };
@@ -73,7 +71,7 @@ Current Working Directory: ${cwd.toPosix()}`,
     OBJECTIVE
   ];
 
-  // Initialize template manager if template config exists
+  /* // Initialize template manager if template config exists
   const templateManager = projectConfig?.templateConfig 
     ? new TemplateManager(projectConfig.templateConfig)
     : undefined;
@@ -86,19 +84,19 @@ Current Working Directory: ${cwd.toPosix()}`,
       `TEMPLATE: ${activeTemplate.name}`,
       activeTemplate.content
     );
-  }
+  } */
 
-  // Add project-specific custom instructions if configured
+/*   // Add project-specific custom instructions if configured
   // This is kept separate from templates to maintain backward compatibility
   if (projectConfig?.customInstructions) {
     sections.push(
       "====",
-      "USER'S CUSTOM INSTRUCTIONS",
+      "CUSTOM INSTRUCTIONS",
       projectConfig.customInstructions
     );
-  }
+  } */
 
-  // Add project-specific prompts if configured
+/*   // Add project-specific prompts if configured
   if (projectConfig?.projectSpecificPrompts) {
     Object.entries(projectConfig.projectSpecificPrompts).forEach(([key, value]) => {
       sections.push(
@@ -108,6 +106,6 @@ Current Working Directory: ${cwd.toPosix()}`,
       );
     });
   }
-
+ */
   return sections.filter(Boolean).join("\n\n");
 };
