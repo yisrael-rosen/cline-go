@@ -10,12 +10,31 @@ export interface PromptTemplate {
     version?: string;
     tags?: string[];
     enabledTools?: ToolUseName[];
+    category?: string;
+    variables?: Record<string, {
+      type: 'string' | 'number' | 'boolean';
+      description?: string;
+      required?: boolean;
+      default?: any;
+    }>;
+    parent?: string; // ID of parent template if this extends another
+    createdAt?: Date;
+    updatedAt?: Date;
   };
 }
 
 export interface TemplateConfig {
   activeTemplateId?: string;
   templates: PromptTemplate[];
+  categories?: Record<string, {
+    name: string;
+    description?: string;
+  }>;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
 }
 
 // Built-in templates that ship with the extension
@@ -53,7 +72,10 @@ When developing code using TDD, follow these steps for each component/function:
     metadata: {
       author: "Cline",
       version: "1.0.0",
-      tags: ["testing", "tdd", "best-practices"]
+      tags: ["testing", "tdd", "best-practices"],
+      category: "Testing",
+      createdAt: new Date(),
+      updatedAt: new Date()
     }
   }
 ];
@@ -63,7 +85,13 @@ export class TemplateManager {
 
   constructor(config?: TemplateConfig) {
     this.config = config || {
-      templates: [...builtInTemplates]
+      templates: [...builtInTemplates],
+      categories: {
+        "Testing": {
+          name: "Testing",
+          description: "Templates for test-driven development and testing practices"
+        }
+      }
     };
   }
 
@@ -80,9 +108,60 @@ export class TemplateManager {
     return [...this.config.templates];
   }
 
+  validateTemplate(template: Partial<PromptTemplate>): ValidationResult {
+    const errors: string[] = [];
+
+    if (!template.name?.trim()) {
+      errors.push("Template name is required");
+    }
+
+    if (!template.content?.trim()) {
+      errors.push("Template content is required");
+    }
+
+    if (template.metadata?.parent) {
+      const parentExists = this.getTemplate(template.metadata.parent);
+      if (!parentExists) {
+        errors.push(`Parent template ${template.metadata.parent} does not exist`);
+      }
+    }
+
+    if (template.metadata?.variables) {
+      Object.entries(template.metadata.variables).forEach(([name, config]) => {
+        if (!['string', 'number', 'boolean'].includes(config.type)) {
+          errors.push(`Invalid type for variable ${name}: ${config.type}`);
+        }
+        if (config.required && config.default === undefined) {
+          errors.push(`Required variable ${name} should have a default value`);
+        }
+      });
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
   addTemplate(template: Omit<PromptTemplate, "id">): string {
+    const validation = this.validateTemplate(template);
+    if (!validation.isValid) {
+      throw new Error(`Invalid template: ${validation.errors.join(", ")}`);
+    }
+
     const id = this.generateTemplateId();
-    const newTemplate: PromptTemplate = { ...template, id };
+    const now = new Date();
+    const newTemplate: PromptTemplate = {
+      ...template,
+      id,
+      metadata: {
+        ...template.metadata,
+        version: "1.0.0",
+        createdAt: now,
+        updatedAt: now
+      }
+    };
+
     this.config.templates.push(newTemplate);
     return id;
   }
@@ -91,10 +170,24 @@ export class TemplateManager {
     const index = this.config.templates.findIndex(t => t.id === id);
     if (index === -1) return false;
 
-    this.config.templates[index] = {
-      ...this.config.templates[index],
-      ...updates
+    const currentTemplate = this.config.templates[index];
+    const updatedTemplate: PromptTemplate = {
+      ...currentTemplate,
+      ...updates,
+      metadata: {
+        ...currentTemplate.metadata,
+        ...updates.metadata,
+        version: this.incrementVersion(currentTemplate.metadata?.version || "1.0.0"),
+        updatedAt: new Date()
+      }
     };
+
+    const validation = this.validateTemplate(updatedTemplate);
+    if (!validation.isValid) {
+      throw new Error(`Invalid template update: ${validation.errors.join(", ")}`);
+    }
+
+    this.config.templates[index] = updatedTemplate;
     return true;
   }
 
@@ -105,6 +198,14 @@ export class TemplateManager {
     // Don't allow deleting built-in templates
     if (builtInTemplates.some(t => t.id === id)) {
       return false;
+    }
+
+    // Check if any templates extend this one
+    const hasChildren = this.config.templates.some(
+      t => t.metadata?.parent === id
+    );
+    if (hasChildren) {
+      throw new Error("Cannot delete template that is extended by other templates");
     }
 
     this.config.templates.splice(index, 1);
@@ -122,6 +223,52 @@ export class TemplateManager {
 
   getConfig(): TemplateConfig {
     return { ...this.config };
+  }
+
+  // Template versioning
+  private incrementVersion(version: string): string {
+    const [major, minor, patch] = version.split(".").map(Number);
+    return `${major}.${minor}.${patch + 1}`;
+  }
+
+  // Template export/import
+  exportTemplate(id: string): string {
+    const template = this.getTemplate(id);
+    if (!template) throw new Error(`Template ${id} not found`);
+    return JSON.stringify(template, null, 2);
+  }
+
+  importTemplate(templateJson: string): string {
+    try {
+      const template = JSON.parse(templateJson) as PromptTemplate;
+      const validation = this.validateTemplate(template);
+      if (!validation.isValid) {
+        throw new Error(`Invalid template: ${validation.errors.join(", ")}`);
+      }
+      return this.addTemplate(template);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to import template: ${error.message}`);
+      }
+      throw new Error('Failed to import template: Unknown error');
+    }
+  }
+
+  // Template categories
+  addCategory(name: string, description?: string): void {
+    if (this.config.categories?.[name]) {
+      throw new Error(`Category ${name} already exists`);
+    }
+    this.config.categories = {
+      ...this.config.categories,
+      [name]: { name, description }
+    };
+  }
+
+  getTemplatesByCategory(category: string): PromptTemplate[] {
+    return this.config.templates.filter(
+      t => t.metadata?.category === category
+    );
   }
 
   private generateTemplateId(): string {
