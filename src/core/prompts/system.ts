@@ -38,10 +38,18 @@ export interface SystemConfig extends ProjectConfig {
   shellOverride?: string;
 }
 
+export function addCustomInstructions(instructions: string): string {
+  if (!instructions || !instructions.trim()) {
+    return '';
+  }
+  return `\n\nCUSTOM INSTRUCTIONS\n\n${instructions}`;
+}
+
 export const SYSTEM_PROMPT = async (
   cwd: string,
   supportsComputerUse: boolean,
-  projectConfig?: SystemConfig
+  projectConfig?: SystemConfig,
+  customInstructions?: string
 ): Promise<string> => {
   // Get enabled optional tools
   const enabledOptionalTools = projectConfig?.enabledTools
@@ -82,5 +90,6 @@ Current Working Directory: ${cwd.toPosix()}`,
     OBJECTIVE
   ];
 
-  return sections.filter(Boolean).join("\n\n");
+  const basePrompt = sections.filter(Boolean).join("\n\n");
+  return customInstructions ? basePrompt + addCustomInstructions(customInstructions) : basePrompt;
 };

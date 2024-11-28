@@ -47,7 +47,7 @@ import { arePathsEqual, getReadablePath } from "../utils/path"
 import { parseMentions } from "./mentions"
 import { AssistantMessageContent, parseAssistantMessage, ToolParamName, ToolUseName } from "./assistant-message"
 import { formatResponse } from "./prompts/responses"
-import { addCustomInstructions, SYSTEM_PROMPT } from "./prompts/system"
+import { SYSTEM_PROMPT } from "./prompts/system"
 import { truncateHalfConversation } from "./sliding-window"
 import { ClineProvider, GlobalFileNames } from "./webview/ClineProvider"
 import { showOmissionWarning } from "../integrations/editor/detect-omission"
@@ -753,61 +753,62 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-		let systemPrompt = await SYSTEM_PROMPT(cwd, this.api.getModel().info.supportsComputerUse ?? false)
-		if (this.customInstructions && this.customInstructions.trim()) {
-			// altering the system prompt mid-task will break the prompt cache, but in the grand scheme this will not change often so it's better to not pollute user messages with it the way we have to with <potentially relevant details>
-			systemPrompt += addCustomInstructions(this.customInstructions)
-		}
+    let systemPrompt = await SYSTEM_PROMPT(
+        cwd,
+        this.api.getModel().info.supportsComputerUse ?? false,
+        undefined,
+        this.customInstructions
+    )
 
-		// If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
-		if (previousApiReqIndex >= 0) {
-			const previousRequest = this.clineMessages[previousApiReqIndex]
-			if (previousRequest && previousRequest.text) {
-				const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
-					previousRequest.text
-				)
-				const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
-				const contextWindow = this.api.getModel().info.contextWindow || 128_000
-				const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
-				if (totalTokens >= maxAllowedSize) {
-					const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
-					await this.overwriteApiConversationHistory(truncatedMessages)
-				}
-			}
-		}
+    // If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
+    if (previousApiReqIndex >= 0) {
+        const previousRequest = this.clineMessages[previousApiReqIndex]
+        if (previousRequest && previousRequest.text) {
+            const { tokensIn, tokensOut, cacheWrites, cacheReads }: ClineApiReqInfo = JSON.parse(
+                previousRequest.text
+            )
+            const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
+            const contextWindow = this.api.getModel().info.contextWindow || 128_000
+            const maxAllowedSize = Math.max(contextWindow - 40_000, contextWindow * 0.8)
+            if (totalTokens >= maxAllowedSize) {
+                const truncatedMessages = truncateHalfConversation(this.apiConversationHistory)
+                await this.overwriteApiConversationHistory(truncatedMessages)
+            }
+        }
+    }
 
-		const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
-		const iterator = stream[Symbol.asyncIterator]()
+    const stream = this.api.createMessage(systemPrompt, this.apiConversationHistory)
+    const iterator = stream[Symbol.asyncIterator]()
 
-		try {
-			// awaiting first chunk to see if it will throw an error
-			const firstChunk = await iterator.next()
-			if (!firstChunk.done && firstChunk.value) {
-				yield firstChunk.value
-			} else {
-				throw new Error("No value in first chunk")
-			}
-		} catch (error) {
-			// note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
-			const { response } = await this.ask(
-				"api_req_failed",
-				error.message ?? JSON.stringify(serializeError(error), null, 2)
-			)
-			if (response !== "yesButtonClicked") {
-				// this will never happen since if noButtonClicked, we will clear current task, aborting this instance
-				throw new Error("API request failed")
-			}
-			await this.say("api_req_retried")
-			// delegate generator output from the recursive call
-			yield* this.attemptApiRequest(previousApiReqIndex)
-			return
-		}
+    try {
+        // awaiting first chunk to see if it will throw an error
+        const firstChunk = await iterator.next()
+        if (!firstChunk.done && firstChunk.value) {
+            yield firstChunk.value
+        } else {
+            throw new Error("No value in first chunk")
+        }
+    } catch (error) {
+        // note that this api_req_failed ask is unique in that we only present this option if the api hasn't streamed any content yet (ie it fails on the first chunk due), as it would allow them to hit a retry button. However if the api failed mid-stream, it could be in any arbitrary state where some tools may have executed, so that error is handled differently and requires cancelling the task entirely.
+        const { response } = await this.ask(
+            "api_req_failed",
+            error.message ?? JSON.stringify(serializeError(error), null, 2)
+        )
+        if (response !== "yesButtonClicked") {
+            // this will never happen since if noButtonClicked, we will clear current task, aborting this instance
+            throw new Error("API request failed")
+        }
+        await this.say("api_req_retried")
+        // delegate generator output from the recursive call
+        yield* this.attemptApiRequest(previousApiReqIndex)
+        return
+    }
 
-		// no error, so we can continue to yield all remaining chunks
-		// (needs to be placed outside of try/catch since it we want caller to handle errors not with api_req_failed as that is reserved for first chunk failures only)
-		// this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
-		yield* iterator
-	}
+    // no error, so we can continue to yield all remaining chunks
+    // (needs to be placed outside of try/catch since it we want caller to handle errors not with api_req_failed as that is reserved for first chunk failures only)
+    // this delegates to another generator or iterable object. In this case, it's saying "yield all remaining values from this iterator". This effectively passes along all subsequent chunks from the original stream.
+    yield* iterator
+}
 
 	async presentAssistantMessage() {
 		if (this.abort) {
@@ -2702,3 +2703,4 @@ export class Cline {
 		return `<environment_details>\n${details.trim()}\n</environment_details>`
 	}
 }
+
