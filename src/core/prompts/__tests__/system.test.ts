@@ -92,6 +92,12 @@ describe('system', () => {
       expect(systemPrompt).toContain('RULES');
       expect(systemPrompt).toContain('SYSTEM INFORMATION');
       expect(systemPrompt).toContain('OBJECTIVE');
+
+      // Verify validation rules are included
+      expect(systemPrompt).toContain('Before making any changes to code, you MUST validate');
+      expect(systemPrompt).toContain('When writing or modifying code, you MUST');
+      expect(systemPrompt).toContain('Before using any tool, you MUST');
+      expect(systemPrompt).toContain('Never trust assumptions about');
     });
 
     it('should respect shell override in project config', async () => {
@@ -138,6 +144,37 @@ describe('system', () => {
     it('should not append custom instructions section when instructions are undefined', async () => {
       const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, baseProjectConfig, undefined);
       expect(systemPrompt).not.toContain('CUSTOM INSTRUCTIONS');
+    });
+
+    it('should include validation and verification rules', async () => {
+      const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, baseProjectConfig);
+      
+      // Verify code change validation rules
+      expect(systemPrompt).toContain('Using search_files to find related code');
+      expect(systemPrompt).toContain('Using find_references to check all usages');
+      expect(systemPrompt).toContain('Using list_code_definition_names to understand');
+      expect(systemPrompt).toContain('Reading any relevant test files');
+
+      // Verify TDD and code quality rules
+      expect(systemPrompt).toContain('Write tests first following Test-Driven Development');
+      expect(systemPrompt).toContain('Verify your changes don\'t break existing functionality');
+      expect(systemPrompt).toContain('Consider edge cases and error handling');
+      expect(systemPrompt).toContain('Add appropriate error messages and logging');
+      expect(systemPrompt).toContain('Follow the project\'s existing patterns');
+
+      // Verify tool usage rules
+      expect(systemPrompt).toContain('Analyze the current state using <thinking>');
+      expect(systemPrompt).toContain('Validate all required parameters');
+      expect(systemPrompt).toContain('Consider potential failure cases');
+      expect(systemPrompt).toContain('Wait for confirmation after each tool use');
+
+      // Verify assumption verification rules
+      expect(systemPrompt).toContain('Never trust assumptions about');
+      expect(systemPrompt).toContain('File existence - always verify');
+      expect(systemPrompt).toContain('Code behavior - always check tests');
+      expect(systemPrompt).toContain('User intentions - ask clarifying questions');
+      expect(systemPrompt).toContain('System state - verify using appropriate tools');
+      expect(systemPrompt).toContain('Command success - check results');
     });
   });
 });

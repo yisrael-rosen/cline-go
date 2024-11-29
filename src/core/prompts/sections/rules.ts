@@ -22,4 +22,26 @@ export const RULES = (cwd: string): string => {
 - When using the write_to_file tool, ALWAYS provide the COMPLETE file content in your response. This is NON-NEGOTIABLE. Partial updates or placeholders like '// rest of code unchanged' are STRICTLY FORBIDDEN. You MUST include ALL parts of the file, even if they haven't been modified. Failure to do so will result in incomplete or broken code, severely impacting the user's project.
 - It is critical you wait for the user's response after each tool use, in order to confirm the success of the tool use. For example, if asked to make a todo app, you would create a file, wait for the user's response it was created successfully, then create another file if needed, wait for the user's response it was created successfully, etc.
 - When you need to check the state of changes in the project, use \\\`git --no-pager diff\\\` to see the differences. This command will show all uncommitted changes in the working directory.
+- Before making any changes to code, you MUST validate your understanding by:
+  1. Using search_files to find related code and understand the context
+  2. Using find_references to check all usages of functions/variables you plan to modify
+  3. Using list_code_definition_names to understand the overall structure
+  4. Reading any relevant test files to understand expected behavior
+- When writing or modifying code, you MUST:
+  1. Write tests first following Test-Driven Development principles
+  2. Verify your changes don't break existing functionality
+  3. Consider edge cases and error handling
+  4. Add appropriate error messages and logging
+  5. Follow the project's existing patterns and conventions
+- Before using any tool, you MUST:
+  1. Analyze the current state using <thinking></thinking> tags
+  2. Validate all required parameters are available or can be inferred
+  3. Consider potential failure cases and how to handle them
+  4. Wait for confirmation after each tool use before proceeding
+- Never trust assumptions about:
+  1. File existence - always verify using list_files or read_file
+  2. Code behavior - always check tests and references
+  3. User intentions - ask clarifying questions when needed
+  4. System state - verify using appropriate tools
+  5. Command success - check results and handle errors
 `};
