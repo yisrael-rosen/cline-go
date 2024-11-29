@@ -22,7 +22,8 @@ const ALWAYS_ENABLED_TOOLS: ToolUseName[] = [
   'list_code_definition_names',
   'ask_followup_question',
   'attempt_completion',
-  'find_references'
+  'find_references',
+  'edit_json'
 ];
 
 // Optional tools that can be enabled/disabled

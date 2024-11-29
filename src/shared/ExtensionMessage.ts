@@ -55,6 +55,7 @@ export type ToolUseName =
     | "attempt_completion"
     | "find_references"
     | "get_code_symbols"
+    | "edit_json"
 
 export type ToolParamName =
     | "command"
@@ -72,6 +73,7 @@ export type ToolParamName =
     | "text"
     | "question"
     | "result"
+    | "operations"
 
 export interface ClineSayTool {
     tool:
@@ -87,6 +89,7 @@ export interface ClineSayTool {
         | "findReferences"
         | "searchFiles"
         | "getGoSymbols"
+        | "editedJson"
     path?: string
     content?: string
     diff?: string

@@ -86,6 +86,7 @@ describe('system', () => {
       expect(systemPrompt).toContain('## edit_go_symbols');
       expect(systemPrompt).toContain('## get_go_symbols');
       expect(systemPrompt).toContain('## get_code_symbols');
+      expect(systemPrompt).toContain('## edit_json');
       
       // Verify sections are included
       expect(systemPrompt).toContain('CAPABILITIES');
@@ -128,6 +129,18 @@ describe('system', () => {
       expect(systemPrompt).not.toContain('## browser_action');
       expect(systemPrompt).not.toContain('## get_go_symbols');
       expect(systemPrompt).not.toContain('## get_code_symbols');
+    });
+
+    it('should include edit_json as an always enabled tool', async () => {
+      const config = {
+        ...baseProjectConfig,
+        enabledTools: {} // No optional tools enabled
+      };
+
+      const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, config);
+      expect(systemPrompt).toContain('## edit_json');
+      expect(systemPrompt).toContain('path-based modifications');
+      expect(systemPrompt).toContain('operations: (required) Array of operations');
     });
 
     it('should append custom instructions when provided', async () => {
