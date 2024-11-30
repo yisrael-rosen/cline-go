@@ -10,6 +10,9 @@ import { EXECUTE_COMMAND_TOOL } from './execute-command';
 import { SEARCH_FILES_TOOL } from './search-files';
 import { LIST_FILES_TOOL } from './list-files';
 import { LIST_CODE_DEFINITION_NAMES_TOOL } from './list-code-definition-names';
+import { READ_FILE_TOOL } from './read-file';
+import { WRITE_TO_FILE_TOOL } from './write-to-file';
+import { BROWSER_TOOLS } from '../../sections/browser-tools';
 import { ToolUseName } from '../../../../shared/ExtensionMessage';
 
 const toolDefinitions = {
@@ -25,6 +28,9 @@ const toolDefinitions = {
   list_files: LIST_FILES_TOOL,
   list_code_definition_names: LIST_CODE_DEFINITION_NAMES_TOOL,
   find_references: FIND_REFERENCES_TOOL,
+  read_file: READ_FILE_TOOL,
+  write_to_file: WRITE_TO_FILE_TOOL,
+  browser_action: () => BROWSER_TOOLS
 };
 
 export function getAllTools(cwd: string, supportsComputerUse: boolean, enabledTools: ToolUseName[]): string {
