@@ -57,7 +57,8 @@ describe('system', () => {
         edit_code_symbols: true,
         edit_go_symbols: true,
         get_go_symbols: true,
-        get_code_symbols: true
+        get_code_symbols: true,
+        edit_json: true
       },
       shellOverride: 'C:\\WINDOWS\\system32\\cmd.exe'
     };
@@ -119,7 +120,8 @@ describe('system', () => {
           ...baseProjectConfig.enabledTools,
           browser_action: false,
           get_go_symbols: false,
-          get_code_symbols: false
+          get_code_symbols: false,
+          edit_json: false
         }
       };
 
@@ -129,18 +131,23 @@ describe('system', () => {
       expect(systemPrompt).not.toContain('## browser_action');
       expect(systemPrompt).not.toContain('## get_go_symbols');
       expect(systemPrompt).not.toContain('## get_code_symbols');
+      expect(systemPrompt).not.toContain('## edit_json');
     });
 
-    it('should include edit_json as an always enabled tool', async () => {
+    it('should include edit_json when enabled in config', async () => {
       const config = {
         ...baseProjectConfig,
-        enabledTools: {} // No optional tools enabled
+        enabledTools: {
+          edit_json: true
+        }
       };
 
       const systemPrompt = await SYSTEM_PROMPT(mockCwd, true, config);
       expect(systemPrompt).toContain('## edit_json');
       expect(systemPrompt).toContain('path-based modifications');
-      expect(systemPrompt).toContain('operations: (required) Array of operations');
+      expect(systemPrompt).toContain('operation: (required) Type of operation');
+      expect(systemPrompt).toContain('symbol: (required) JSON path using dot notation');
+      expect(systemPrompt).toContain('value: (required for set/append)');
     });
 
     it('should append custom instructions when provided', async () => {

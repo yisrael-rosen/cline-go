@@ -7,6 +7,7 @@ export interface EnabledTools {
   edit_go_symbols?: boolean;
   get_go_symbols?: boolean;
   get_code_symbols?: boolean;
+  edit_json?: boolean;
 }
 
 /**

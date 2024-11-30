@@ -24,89 +24,65 @@ describe('editJson', () => {
   });
 
   test('should set a value at path', async () => {
-    await editJson(testFile, [{
-      path: 'settings.enabled',
+    await editJson(testFile, {
+      symbol: 'settings.enabled',
       value: false,
       operation: 'set'
-    }]);
+    });
 
     const result = JSON.parse(fs.readFileSync(testFile, 'utf8'));
     expect(result.settings.enabled).toBe(false);
   });
 
   test('should delete a value at path', async () => {
-    await editJson(testFile, [{
-      path: 'settings.count',
+    await editJson(testFile, {
+      symbol: 'settings.count',
       operation: 'delete'
-    }]);
+    });
 
     const result = JSON.parse(fs.readFileSync(testFile, 'utf8'));
     expect(result.settings.count).toBeUndefined();
   });
 
   test('should append to array at path', async () => {
-    await editJson(testFile, [{
-      path: 'items',
+    await editJson(testFile, {
+      symbol: 'items',
       value: "d",
       operation: 'append'
-    }]);
+    });
 
     const result = JSON.parse(fs.readFileSync(testFile, 'utf8'));
     expect(result.items).toEqual(["a", "b", "c", "d"]);
-  });
-
-  test('should handle multiple operations', async () => {
-    await editJson(testFile, [
-      {
-        path: 'name',
-        value: 'updated',
-        operation: 'set'
-      },
-      {
-        path: 'items',
-        value: 'd',
-        operation: 'append'
-      },
-      {
-        path: 'settings.count',
-        operation: 'delete'
-      }
-    ]);
-
-    const result = JSON.parse(fs.readFileSync(testFile, 'utf8'));
-    expect(result.name).toBe('updated');
-    expect(result.items).toEqual(["a", "b", "c", "d"]);
-    expect(result.settings.count).toBeUndefined();
   });
 
   test('should throw error when appending to non-array', async () => {
-    await expect(editJson(testFile, [{
-      path: 'name',
+    await expect(editJson(testFile, {
+      symbol: 'name',
       value: 'test',
       operation: 'append'
-    }])).rejects.toThrow('Cannot append to non-array path');
+    })).rejects.toThrow('Cannot append to non-array path');
   });
 
   test('should throw error when setting without value', async () => {
-    await expect(editJson(testFile, [{
-      path: 'name',
+    await expect(editJson(testFile, {
+      symbol: 'name',
       operation: 'set'
-    } as any])).rejects.toThrow('Value is required for set operations');
+    } as any)).rejects.toThrow('Value is required for set operations');
   });
 
   test('should throw error when appending without value', async () => {
-    await expect(editJson(testFile, [{
-      path: 'items',
+    await expect(editJson(testFile, {
+      symbol: 'items',
       operation: 'append'
-    } as any])).rejects.toThrow('Value is required for append operations');
+    } as any)).rejects.toThrow('Value is required for append operations');
   });
 
   test('should handle nested paths', async () => {
-    await editJson(testFile, [{
-      path: 'settings.nested.deep.value',
+    await editJson(testFile, {
+      symbol: 'settings.nested.deep.value',
       value: 42,
       operation: 'set'
-    }]);
+    });
 
     const result = JSON.parse(fs.readFileSync(testFile, 'utf8'));
     expect(result.settings.nested.deep.value).toBe(42);

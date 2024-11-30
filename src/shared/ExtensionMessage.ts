@@ -73,7 +73,10 @@ export type ToolParamName =
     | "text"
     | "question"
     | "result"
-    | "operations"
+    | "operation"
+    | "value"
+    | "edit_type"
+    | "relative_to_symbol"
 
 export interface ClineSayTool {
     tool:

@@ -23,6 +23,7 @@ export const toolUseNames = [
 	"edit_go_symbols",
 	"get_code_symbols",
 	"get_go_symbols",
+	"edit_json",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -44,7 +45,9 @@ export const toolParamNames = [
     "symbol",
     "edit_type",
     "position",
-	"relative_to_symbol"
+    "relative_to_symbol",
+    "operation",
+    "value",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -117,6 +120,7 @@ export interface GetCodeSymbols extends ToolUse {
 	name: "get_code_symbols"
 	params: Partial<Pick<Record<ToolParamName, string>, "path">>
 }
+
 export interface EditGoSymbols extends ToolUse {
     name: "edit_go_symbols"
     params: Partial<Pick<Record<ToolParamName, string>, 
@@ -126,5 +130,15 @@ export interface EditGoSymbols extends ToolUse {
         "content" | 
         "position" | 
         "relative_to_symbol"
+    >>
+}
+
+export interface EditJsonToolUse extends ToolUse {
+    name: "edit_json"
+    params: Partial<Pick<Record<ToolParamName, string>, 
+        "path" |
+        "operation" |
+        "symbol" |
+        "value"
     >>
 }

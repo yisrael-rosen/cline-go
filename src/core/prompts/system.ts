@@ -22,8 +22,7 @@ const ALWAYS_ENABLED_TOOLS: ToolUseName[] = [
   'list_code_definition_names',
   'ask_followup_question',
   'attempt_completion',
-  'find_references',
-  'edit_json'
+  'find_references'
 ];
 
 // Optional tools that can be enabled/disabled
@@ -32,7 +31,8 @@ const OPTIONAL_TOOLS: ToolUseName[] = [
   'edit_code_symbols',
   'edit_go_symbols',
   'get_go_symbols',
-  'get_code_symbols'
+  'get_code_symbols',
+  'edit_json'
 ];
 
 export interface SystemConfig extends ProjectConfig {

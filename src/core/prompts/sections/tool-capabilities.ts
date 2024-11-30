@@ -64,6 +64,19 @@ export const generateCapabilities = (
     );
   }
 
+  // Optional JSON editing capabilities
+  if (hasTools(['edit_json'])) {
+    capabilities.push(
+      `- For JSON file modifications, you have a specialized tool:
+    - edit_json: Use this tool for precise modifications to JSON files using dot notation paths. This tool allows you to:
+        - Set values at specific paths in the JSON structure
+        - Delete fields or array elements
+        - Append items to arrays
+        - Make targeted changes to JSON configuration files
+        - Update nested JSON structures while preserving the overall format`
+    );
+  }
+
   // Browser capabilities
   if (hasTools(['browser_action'])) {
     capabilities.push(

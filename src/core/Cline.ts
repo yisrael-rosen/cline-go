@@ -25,6 +25,7 @@ import { editCodeWithSymbols, canEditWithSymbols, getCodeSymbols, EditType, Inse
 import { GoParser, EditRequest } from "../../go/parser/wrapper"
 import { getGoSymbols, GoSymbol, formatGoSymbols } from '../services/go/get-go-symbols';
 import { checkFileLength } from "../utils/file-length-check";
+import { editJson } from "../services/json/edit-json";
 
 import {
 	BrowserAction,
@@ -883,6 +884,8 @@ export class Cline {
 			case "tool_use":
 				const toolDescription = () => {
 					switch (block.name) {
+						case "edit_json":
+							return `[${block.name} for '${block.params.path}']`
 						case "get_code_symbols":
 							return `[${block.name} for '${block.params.path}']`
 						case "get_go_symbols":
@@ -1033,6 +1036,141 @@ export class Cline {
 				}
 
 				switch (block.name) {
+					case "edit_json": {
+						const relPath: string | undefined = block.params.path
+						const operation: string | undefined = block.params.operation
+						const symbol: string | undefined = block.params.symbol
+						const value: string | undefined = block.params.value
+						const sharedMessageProps: ClineSayTool = {
+							tool: "editedJson",
+							path: getReadablePath(cwd, removeClosingTag("path", relPath))
+						}
+					
+						try {
+							if (block.partial) {
+								await this.say("tool", JSON.stringify(sharedMessageProps), undefined, block.partial)
+								break
+							}
+					
+							// Validate required parameters
+							if (!relPath) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_json", "path") +
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+							if (!operation) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_json", "operation") +
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+							if (!symbol) {
+								this.consecutiveMistakeCount++
+								pushToolResult(await this.sayAndCreateMissingParamError("edit_json", "symbol") +
+									`\n\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+					
+							// Validate operation type
+							if (!['set', 'delete', 'append'].includes(operation)) {
+								pushToolResult(`Invalid operation type: ${operation}. Must be 'set', 'delete', or 'append'.\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+					
+							// Validate value for set/append operations
+							if ((operation === 'set' || operation === 'append') && value === undefined) {
+								pushToolResult(`Invalid operation: 'value' is required for ${operation} operations.\nReceived parameters:\n${JSON.stringify(block.params, null, 2)}`)
+								break
+							}
+					
+							const absolutePath = path.resolve(cwd, relPath)
+					
+							try {
+								// Get the document for diffing
+								const document = await vscode.workspace.openTextDocument(absolutePath)
+								const originalContent = document.getText()
+					
+								// Create operation object with the new interface
+								const jsonOperation = {
+									symbol: symbol,
+									operation: operation as 'set' | 'delete' | 'append',
+									value: value !== undefined ? JSON.parse(value) : undefined
+								}
+					
+								// Perform the JSON edit
+								const result = await editJson(absolutePath, jsonOperation)
+					
+								// Get updated content
+								const updatedDocument = await vscode.workspace.openTextDocument(absolutePath)
+								const newContent = updatedDocument.getText()
+					
+								// Show diff preview
+								this.diffViewProvider.editType = "modify"
+								if (!this.diffViewProvider.isEditing) {
+									await this.diffViewProvider.open(relPath)
+								}
+								await this.diffViewProvider.update(newContent, true)
+								await delay(300) // wait for diff view to update
+								this.diffViewProvider.scrollToFirstDiff()
+								showOmissionWarning(this.diffViewProvider.originalContent || "", newContent)
+					
+								const completeMessage = JSON.stringify({
+									...sharedMessageProps,
+									diff: formatResponse.createPrettyPatch(
+										relPath,
+										this.diffViewProvider.originalContent,
+										newContent
+									)
+								} satisfies ClineSayTool)
+					
+								const didApprove = await askApproval("tool", completeMessage)
+								if (!didApprove) {
+									await this.diffViewProvider.revertChanges()
+									break
+								}
+					
+								// Apply and save the changes
+								const { newProblemsMessage, userEdits, finalContent } = await this.diffViewProvider.saveChanges()
+								this.didEditFile = true
+					
+								if (userEdits) {
+									await this.say(
+										"user_feedback_diff",
+										JSON.stringify({
+											tool: "editedJson",
+											path: getReadablePath(cwd, relPath),
+											diff: userEdits,
+										} satisfies ClineSayTool)
+									)
+									pushToolResult(
+										`The user made the following updates to your content:\n\n${userEdits}\n\n` +
+										`The updated content, which includes both your original modifications and the user's edits, has been successfully saved to ${relPath.toPosix()}. Here is the full, updated content of the file:\n\n` +
+										`<final_file_content path="${relPath.toPosix()}">\n${finalContent}\n</final_file_content>\n\n` +
+										`Please note:\n` +
+										`1. You do not need to re-write the file with these changes, as they have already been applied.\n` +
+										`2. Proceed with the task using this updated file content as the new baseline.\n` +
+										`3. If the user's edits have addressed part of the task or changed the requirements, adjust your approach accordingly.` +
+										`${newProblemsMessage}`
+									)
+								} else {
+									pushToolResult(
+										`The content was successfully saved to ${relPath.toPosix()}.${newProblemsMessage}`
+									)
+								}
+								await this.diffViewProvider.reset()
+								break
+							} catch (error) {
+								await handleError("editing json", error)
+								await this.diffViewProvider.reset()
+								break
+							}
+						} catch (error) {
+							await handleError("editing json", error)
+							await this.diffViewProvider.reset()
+							break
+						}
+					}	
 					case "get_go_symbols": {
 						const relPath: string | undefined = block.params.path
 						const sharedMessageProps: ClineSayTool = {

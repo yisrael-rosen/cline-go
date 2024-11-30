@@ -3,31 +3,29 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export type JsonEditOperation = {
-  path: string; // JSON path like "foo.bar[0].baz"
   operation: 'set' | 'delete' | 'append'; // Type of operation
+  symbol: string; // JSON path like "foo.bar[0].baz"
   value?: any; // New value to set - optional for delete operations
 };
 
-export async function editJson(filePath: string, operations: JsonEditOperation[]): Promise<void> {
+export async function editJson(filePath: string, operation: JsonEditOperation): Promise<void> {
   try {
     const absolutePath = path.resolve(filePath);
     const content = fs.readFileSync(absolutePath, 'utf8');
     let json = JSON.parse(content);
 
-    for (const op of operations) {
-      if ((op.operation === 'set' || op.operation === 'append') && op.value === undefined) {
-        throw new Error(`Value is required for ${op.operation} operations`);
-      }
+    if ((operation.operation === 'set' || operation.operation === 'append') && operation.value === undefined) {
+      throw new Error(`Value is required for ${operation.operation} operations`);
+    }
 
-      const pathParts = op.path.split(/[\.\[\]]+/).filter(Boolean);
-      
-      if (op.operation === 'delete') {
-        deleteJsonPath(json, pathParts);
-      } else if (op.operation === 'set') {
-        setJsonPath(json, pathParts, op.value);
-      } else if (op.operation === 'append') {
-        appendToJsonPath(json, pathParts, op.value);
-      }
+    const pathParts = operation.symbol.split(/[\.\[\]]+/).filter(Boolean);
+    
+    if (operation.operation === 'delete') {
+      deleteJsonPath(json, pathParts);
+    } else if (operation.operation === 'set') {
+      setJsonPath(json, pathParts, operation.value);
+    } else if (operation.operation === 'append') {
+      appendToJsonPath(json, pathParts, operation.value);
     }
 
     const formatted = JSON.stringify(json, null, 2);
