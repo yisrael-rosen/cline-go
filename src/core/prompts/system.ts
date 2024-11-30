@@ -69,26 +69,55 @@ export const SYSTEM_PROMPT = async (
     : "";
     
   const sections = [
+    // 1. Core Identity and Purpose
     BASE_PROMPT,
     "====",
-    "TOOL USE",
-    TOOL_USE_FORMATTING,
-    ...(toolsSection ? [toolsSection] : []), // Only include if not empty
+    "OBJECTIVE",
+    OBJECTIVE,
     "====",
-    "CAPABILITIES",
-    CAPABILITIES(cwd, supportsComputerUse, projectConfig),
+    
+    // 2. Critical Rules and Constraints
+    "CRITICAL RULES AND CONSTRAINTS",
+    `# HIGHEST PRIORITY - MUST NEVER BE VIOLATED
+- When using the write_to_file tool, ALWAYS provide the COMPLETE file content. This is NON-NEGOTIABLE.
+- ALWAYS wait for user confirmation after each tool use before proceeding.
+- NEVER engage in conversational responses or end messages with questions.
+- NEVER start messages with "Great", "Certainly", "Okay", "Sure".
+
+# OPERATIONAL CONSTRAINTS
+- Current working directory is: ${cwd}
+- Cannot cd into different directories
+- Do not use ~ or $HOME for home directory
+
+# MEMORY REFRESH TRIGGERS
+Before each action, verify:
+1. All critical rules are being followed
+2. Required validations are complete
+3. Development standards are maintained
+4. Tool usage guidelines are respected`,
     "====",
-    "RULES",
-    RULES(cwd),
-    "====",
+
+    // 3. Operating Environment
     "SYSTEM INFORMATION",
     `Operating System: ${osName()}
 Default Shell: ${projectConfig?.shellOverride || defaultShell}
 Home Directory: ${os.homedir().toPosix()}
 Current Working Directory: ${cwd.toPosix()}`,
     "====",
-    "OBJECTIVE",
-    OBJECTIVE
+
+    // 4. Development Standards
+    "DEVELOPMENT STANDARDS",
+    RULES(cwd),
+    "====",
+
+    // 5. Tool Framework
+    "TOOL FRAMEWORK",
+    "# Core Principles",
+    TOOL_USE_FORMATTING,
+    "# Available Tools",
+    CAPABILITIES(cwd, supportsComputerUse, projectConfig),
+    "# Tool Documentation",
+    ...(toolsSection ? [toolsSection] : [])
   ];
 
   const basePrompt = sections.filter(Boolean).join("\n\n");
