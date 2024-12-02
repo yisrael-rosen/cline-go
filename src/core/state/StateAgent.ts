@@ -44,17 +44,17 @@ RULES:
    - 'completed' when the main goal is achieved
    - 'active' during normal progress
 3. Track current step based on activity
-4. Keep response in JSON format:
-{
-  "newState": {
-    "mainGoal": string,
-    "status": "active" | "blocked" | "completed",
-    "currentStep": string,
-    "lastAction": string
-  },
-  "reason": string,
-  "recommendation"?: string
-}
+4. Keep response in XML format:
+<stateUpdate>
+  <state>
+    <mainGoal>string</mainGoal>
+    <status>active|blocked|completed</status>
+    <currentStep>string</currentStep>
+    <lastAction>string</lastAction>
+  </state>
+  <reason>string</reason>
+  <recommendation>string (optional)</recommendation>
+</stateUpdate>
 
 Message Types:
 - TASK_START: Initial task message that sets the main goal
@@ -71,9 +71,53 @@ export class StateAgent {
     this.api = api;
   }
 
+  private stateToXml(state: MinimalTaskState): string {
+    return `<state>
+  <mainGoal>${this.escapeXml(state.mainGoal)}</mainGoal>
+  <status>${state.status}</status>
+  ${state.currentStep ? `<currentStep>${this.escapeXml(state.currentStep)}</currentStep>` : ''}
+  ${state.lastAction ? `<lastAction>${this.escapeXml(state.lastAction)}</lastAction>` : ''}
+</state>`;
+  }
+
+  private escapeXml(unsafe: string): string {
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  private parseXmlResponse(xml: string): StateUpdateResult {
+    // Basic XML parsing using regex - in production you'd want to use a proper XML parser
+    const getTagContent = (tag: string) => {
+      const match = xml.match(new RegExp(`<${tag}>(.*?)</${tag}>`));
+      return match ? match[1] : '';
+    };
+
+    const mainGoal = getTagContent('mainGoal');
+    const status = getTagContent('status') as 'active' | 'blocked' | 'completed';
+    const currentStep = getTagContent('currentStep');
+    const lastAction = getTagContent('lastAction');
+    const reason = getTagContent('reason');
+    const recommendation = getTagContent('recommendation');
+
+    return {
+      newState: {
+        mainGoal,
+        status,
+        ...(currentStep && { currentStep }),
+        ...(lastAction && { lastAction })
+      },
+      reason,
+      ...(recommendation && { recommendation })
+    };
+  }
+
   private formatUpdateInput(input: StateUpdateInput): string {
     return STATE_AGENT_PROMPT
-      .replace('{currentState}', JSON.stringify(input.currentState, null, 2))
+      .replace('{currentState}', this.stateToXml(input.currentState))
       .replace('{messageType}', input.messageType)
       .replace('{sender}', input.sender)
       .replace('{content}', input.content);
@@ -143,7 +187,7 @@ export class StateAgent {
       }
       
       // Parse and validate response
-      const result = JSON.parse(fullResponse) as StateUpdateResult;
+      const result = this.parseXmlResponse(fullResponse);
       
       // Basic validation
       if (!this.validateStateUpdate(result)) {
@@ -163,20 +207,16 @@ export class StateAgent {
   }
 
   private validateStateUpdate(result: StateUpdateResult): boolean {
-    // Check that all required fields are present
+    // Check that all required fields are present and valid
     const requiredStateFields = ['mainGoal', 'status'];
+    const validStatuses = ['active', 'blocked', 'completed'];
+
     const hasRequiredFields = requiredStateFields.every(field => 
       Object.prototype.hasOwnProperty.call(result.newState, field)
     );
-
-    // Check that status is valid
-    const validStatuses = ['active', 'blocked', 'completed'];
     const hasValidStatus = validStatuses.includes(result.newState.status);
+    const hasValidReason = typeof result.reason === 'string' && result.reason.length > 0;
 
-    // Check that reason is provided
-    const hasReason = typeof result.reason === 'string' && result.reason.length > 0;
-
-    return hasRequiredFields && hasValidStatus && hasReason;
+    return hasRequiredFields && hasValidStatus && hasValidReason;
   }
 }
-
