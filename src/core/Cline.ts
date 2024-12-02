@@ -345,6 +345,10 @@ export class Cline {
 		this.askResponse = askResponse
 		this.askResponseText = text
 		this.askResponseImages = images
+
+		if (text && askResponse === "messageResponse") {
+			await this.stateManager.handleUserMessage(text);
+		  }
 	}
 
 	async say(type: ClineSay, text?: string, images?: string[], partial?: boolean): Promise<undefined> {
@@ -2655,6 +2659,7 @@ export class Cline {
 				// if (this.currentStreamingContentIndex >= completeBlocks.length) {
 				// 	this.userMessageContentReady = true
 				// }
+				await this.stateManager.handleAssistantMessage(assistantMessage);
 
 				await pWaitFor(() => this.userMessageContentReady)
 

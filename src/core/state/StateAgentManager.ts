@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { StateAgent, MinimalTaskState, StateUpdateInput } from './StateAgent';
+import { StateAgent, MinimalTaskState } from './StateAgent';
 import { ApiHandler } from '../../api';
 
 export class StateAgentManager {
@@ -14,11 +14,7 @@ export class StateAgentManager {
       status: 'active'
     };
   }
-  public async handleNewTask(taskText: string) {
-    const result = await this.stateAgent.analyzeTask(taskText);
-    this.currentState = result.newState;
-    return result;
-  }
+
   public start() {
     // Listen for relevant VSCode events
     this.disposables.push(
@@ -30,7 +26,6 @@ export class StateAgentManager {
   }
 
   public stop() {
-    // Clean up event listeners
     this.disposables.forEach(d => d.dispose());
     this.disposables = [];
   }
@@ -40,13 +35,25 @@ export class StateAgentManager {
   }
 
   public async setMainGoal(goal: string) {
-    const input: StateUpdateInput = {
-      currentState: this.currentState,
-      newEvent: 'Set main goal',
-      lastMessage: goal
-    };
+    const result = await this.stateAgent.handleNewTask(goal);
+    this.currentState = result.newState;
+    return result;
+  }
 
-    const result = await this.stateAgent.updateState(input);
+  public async handleNewTask(taskText: string) {
+    const result = await this.stateAgent.handleNewTask(taskText);
+    this.currentState = result.newState;
+    return result;
+  }
+
+  public async handleUserMessage(message: string) {
+    const result = await this.stateAgent.handleUserMessage(this.currentState, message);
+    this.currentState = result.newState;
+    return result;
+  }
+
+  public async handleAssistantMessage(message: string) {
+    const result = await this.stateAgent.handleAssistantMessage(this.currentState, message);
     this.currentState = result.newState;
     return result;
   }
@@ -54,48 +61,36 @@ export class StateAgentManager {
   private async handleDocumentChange(event: vscode.TextDocumentChangeEvent) {
     if (event.contentChanges.length === 0) return;
 
-    const input: StateUpdateInput = {
-      currentState: this.currentState,
-      newEvent: 'Document changed',
-      lastMessage: `Changes in ${event.document.fileName}`
-    };
-
-    const result = await this.stateAgent.updateState(input);
+    const result = await this.stateAgent.handleEvent(
+      this.currentState,
+      `Document changed: ${event.document.fileName}`
+    );
     this.currentState = result.newState;
   }
 
   private async handleEditorChange(editor: vscode.TextEditor | undefined) {
     if (!editor) return;
 
-    const input: StateUpdateInput = {
-      currentState: this.currentState,
-      newEvent: 'Editor changed',
-      lastMessage: `Switched to ${editor.document.fileName}`
-    };
-
-    const result = await this.stateAgent.updateState(input);
+    const result = await this.stateAgent.handleEvent(
+      this.currentState,
+      `Editor changed to: ${editor.document.fileName}`
+    );
     this.currentState = result.newState;
   }
 
   private async handleTaskStart(event: vscode.TaskStartEvent) {
-    const input: StateUpdateInput = {
-      currentState: this.currentState,
-      newEvent: 'Task started',
-      lastMessage: `Started task: ${event.execution.task.name}`
-    };
-
-    const result = await this.stateAgent.updateState(input);
+    const result = await this.stateAgent.handleEvent(
+      this.currentState,
+      `Task started: ${event.execution.task.name}`
+    );
     this.currentState = result.newState;
   }
 
   private async handleTaskEnd(event: vscode.TaskEndEvent) {
-    const input: StateUpdateInput = {
-      currentState: this.currentState,
-      newEvent: 'Task ended',
-      lastMessage: `Completed task: ${event.execution.task.name}`
-    };
-
-    const result = await this.stateAgent.updateState(input);
+    const result = await this.stateAgent.handleEvent(
+      this.currentState,
+      `Task completed: ${event.execution.task.name}`
+    );
     this.currentState = result.newState;
   }
 }

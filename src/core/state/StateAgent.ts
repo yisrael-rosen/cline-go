@@ -1,6 +1,10 @@
-import { ApiHandler } from '../../api';
+import { ApiHandler, buildApiHandler } from '../../api';
 import { ApiStreamChunk } from '../../api/transform/stream';
 import { Anthropic } from '@anthropic-ai/sdk';
+import { ApiConfiguration } from '../../shared/api';
+import { Agent } from 'openai/_shims/node-types.mjs';
+
+export type MessageType = 'TASK_START' | 'USER_MESSAGE' | 'ASSISTANT_MESSAGE' | 'EVENT';
 
 export interface MinimalTaskState {
   mainGoal: string;
@@ -11,8 +15,9 @@ export interface MinimalTaskState {
 
 export interface StateUpdateInput {
   currentState: MinimalTaskState;
-  lastMessage?: string;
-  newEvent?: string;
+  messageType: MessageType;
+  sender: string;
+  content: string;
 }
 
 export interface StateUpdateResult {
@@ -22,18 +27,20 @@ export interface StateUpdateResult {
 }
 
 export const STATE_AGENT_PROMPT = `You are a Task State Management Agent.
-Your role is to maintain and update task state based on events and messages.
+Your role is to maintain and update task state based on events, messages, and conversation flow.
 
 CURRENT STATE:
 {currentState}
 
 NEW INFORMATION:
-{newEvent}
-{lastMessage}
+Message Type: {messageType}
+Sender: {sender}
+Content:
+{content}
 
 RULES:
 1. Maintain task focus and context
-2. Only change status when there's a clear reason:
+2. Update status based on clear triggers:
    - 'blocked' when encountering issues or waiting for input
    - 'completed' when the main goal is achieved
    - 'active' during normal progress
@@ -50,10 +57,11 @@ RULES:
   "recommendation"?: string
 }
 
-Consider the context of VSCode events:
-- Document changes indicate active development
-- Editor changes show context switching
-- Task events reflect build/test activities
+Message Types:
+- TASK_START: Initial task message that sets the main goal
+- USER_MESSAGE: Message from the user that may change task direction
+- ASSISTANT_MESSAGE: Response from the main assistant showing progress
+- EVENT: System or environment event
 
 Analyze the new information and provide updated state with explanation.`;
 
@@ -63,35 +71,56 @@ export class StateAgent {
   constructor(api: ApiHandler) {
     this.api = api;
   }
-	async analyzeTask(taskText: string): Promise<StateUpdateResult> {
-		const input: StateUpdateInput = {
-		  currentState: {
-			mainGoal: '',
-			status: 'active'
-		  },
-		  newEvent: 'New task started',
-		  lastMessage: taskText
-		};
-		
-		return this.updateState(input);
-	  }
+
   private formatUpdateInput(input: StateUpdateInput): string {
-    let prompt = STATE_AGENT_PROMPT
-      .replace('{currentState}', JSON.stringify(input.currentState, null, 2));
-    
-    if (input.newEvent) {
-      prompt = prompt.replace('{newEvent}', `Event: ${input.newEvent}`);
-    } else {
-      prompt = prompt.replace('{newEvent}', '');
-    }
-    
-    if (input.lastMessage) {
-      prompt = prompt.replace('{lastMessage}', `Message: ${input.lastMessage}`);
-    } else {
-      prompt = prompt.replace('{lastMessage}', '');
-    }
-    
-    return prompt;
+    return STATE_AGENT_PROMPT
+      .replace('{currentState}', JSON.stringify(input.currentState, null, 2))
+      .replace('{messageType}', input.messageType)
+      .replace('{sender}', input.sender)
+      .replace('{content}', input.content);
+  }
+
+  async analyzeTask(taskText: string): Promise<StateUpdateResult> {
+    return this.handleNewTask(taskText);
+  }
+
+  async handleNewTask(taskText: string): Promise<StateUpdateResult> {
+    return this.updateState({
+      currentState: {
+        mainGoal: '',
+        status: 'active'
+      },
+      messageType: 'TASK_START',
+      sender: 'user',
+      content: taskText
+    });
+  }
+
+  async handleUserMessage(currentState: MinimalTaskState, message: string): Promise<StateUpdateResult> {
+    return this.updateState({
+      currentState,
+      messageType: 'USER_MESSAGE',
+      sender: 'user',
+      content: message
+    });
+  }
+
+  async handleAssistantMessage(currentState: MinimalTaskState, message: string): Promise<StateUpdateResult> {
+    return this.updateState({
+      currentState,
+      messageType: 'ASSISTANT_MESSAGE',
+      sender: 'assistant',
+      content: message
+    });
+  }
+
+  async handleEvent(currentState: MinimalTaskState, event: string): Promise<StateUpdateResult> {
+    return this.updateState({
+      currentState,
+      messageType: 'EVENT',
+      sender: 'system',
+      content: event
+    });
   }
 
   async updateState(input: StateUpdateInput): Promise<StateUpdateResult> {
@@ -151,3 +180,4 @@ export class StateAgent {
     return hasRequiredFields && hasValidStatus && hasReason;
   }
 }
+
