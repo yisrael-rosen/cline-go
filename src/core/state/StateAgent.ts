@@ -63,7 +63,18 @@ export class StateAgent {
   constructor(api: ApiHandler) {
     this.api = api;
   }
-
+	async analyzeTask(taskText: string): Promise<StateUpdateResult> {
+		const input: StateUpdateInput = {
+		  currentState: {
+			mainGoal: '',
+			status: 'active'
+		  },
+		  newEvent: 'New task started',
+		  lastMessage: taskText
+		};
+		
+		return this.updateState(input);
+	  }
   private formatUpdateInput(input: StateUpdateInput): string {
     let prompt = STATE_AGENT_PROMPT
       .replace('{currentState}', JSON.stringify(input.currentState, null, 2));

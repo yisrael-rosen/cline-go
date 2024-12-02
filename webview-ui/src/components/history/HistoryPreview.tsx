@@ -1,9 +1,8 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
-import { memo, useEffect, useState } from "react"
+import { memo } from "react"
 import { formatLargeNumber } from "../../utils/format"
-import { MinimalTaskState } from "../../types/state"
 
 type HistoryPreviewProps = {
 	showHistoryView: () => void
@@ -11,28 +10,6 @@ type HistoryPreviewProps = {
 
 const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 	const { taskHistory } = useExtensionState()
-	const [currentState, setCurrentState] = useState<MinimalTaskState | null>(null)
-
-	useEffect(() => {
-		// Set up interval to fetch state
-		const interval = setInterval(() => {
-			vscode.postMessage({ type: "getTaskState" });
-		}, 1000);
-
-		// Listen for state updates
-		const handleMessage = (event: MessageEvent) => {
-			const message = event.data;
-			if (message.type === 'taskState') {
-				setCurrentState(message.taskState);
-			}
-		};
-		window.addEventListener('message', handleMessage);
-
-		return () => {
-			clearInterval(interval);
-			window.removeEventListener('message', handleMessage);
-		};
-	}, []);
 
 	const handleHistorySelect = (id: string) => {
 		vscode.postMessage({ type: "showTaskWithId", text: id })
@@ -154,32 +131,6 @@ const HistoryPreview = ({ showHistoryView }: HistoryPreviewProps) => {
 							</div>
 						</div>
 					))}
-
-				{/* State Debug View */}
-				{currentState && (
-					<div className="history-preview-item" style={{ cursor: 'default' }}>
-						<div style={{ padding: "12px" }}>
-							<div style={{ marginBottom: "8px" }}>
-								<span style={{
-									color: "var(--vscode-descriptionForeground)",
-									fontWeight: 500,
-									fontSize: "0.85em",
-									textTransform: "uppercase"
-								}}>
-									CURRENT TASK STATE
-								</span>
-							</div>
-							<pre style={{
-								fontSize: "0.85em",
-								color: "var(--vscode-descriptionForeground)",
-								whiteSpace: "pre-wrap",
-								wordBreak: "break-word"
-							}}>
-								{JSON.stringify(currentState, null, 2)}
-							</pre>
-						</div>
-					</div>
-				)}
 
 				<div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
 					<VSCodeButton

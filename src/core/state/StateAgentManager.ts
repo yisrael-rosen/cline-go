@@ -14,7 +14,11 @@ export class StateAgentManager {
       status: 'active'
     };
   }
-
+  public async handleNewTask(taskText: string) {
+    const result = await this.stateAgent.analyzeTask(taskText);
+    this.currentState = result.newState;
+    return result;
+  }
   public start() {
     // Listen for relevant VSCode events
     this.disposables.push(

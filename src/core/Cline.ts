@@ -424,7 +424,9 @@ export class Cline {
 		await this.providerRef.deref()?.postStateToWebview()
 
 		await this.say("text", task, images)
-
+		if (task) {
+			await this.stateManager.handleNewTask(task);
+		  }
 		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 		await this.initiateTaskLoop([
 			{

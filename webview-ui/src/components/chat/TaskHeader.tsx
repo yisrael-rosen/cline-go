@@ -1,8 +1,9 @@
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { memo, useMemo } from "react"
+import { memo, useEffect, useState } from "react"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { vscode } from "../../utils/vscode"
 import { ClineMessage, ToolUseName } from "../../../../src/shared/ExtensionMessage"
+import { MinimalTaskState } from "../../../../src/core/state/StateAgent"
 
 interface TaskHeaderProps {
     task: ClineMessage;
@@ -26,6 +27,28 @@ const TaskHeader = ({
     onClose,
 }: TaskHeaderProps) => {
 	const { apiConfiguration, enabledTools } = useExtensionState()
+	const [currentState, setCurrentState] = useState<MinimalTaskState | null>(null)
+
+	useEffect(() => {
+		// Set up interval to fetch state
+		const interval = setInterval(() => {
+			vscode.postMessage({ type: "getTaskState" });
+		}, 1000);
+
+		// Listen for state updates
+		const handleMessage = (event: MessageEvent) => {
+			const message = event.data;
+			if (message.type === 'taskState') {
+				setCurrentState(message.taskState);
+			}
+		};
+		window.addEventListener('message', handleMessage);
+
+		return () => {
+			clearInterval(interval);
+			window.removeEventListener('message', handleMessage);
+		};
+	}, []);
 
 	return (
 		<div
@@ -51,6 +74,39 @@ const TaskHeader = ({
 						style={{ padding: 5 }}>
 						<span className="codicon codicon-export"></span>
 					</VSCodeButton>
+					{currentState && (
+						<div style={{ 
+							display: "flex", 
+							flexDirection: "column",
+							gap: 4,
+							padding: "6px 10px",
+							backgroundColor: "var(--vscode-badge-background)",
+							borderRadius: "3px",
+							fontSize: "11px",
+							color: "var(--vscode-badge-foreground)"
+						}}>
+							<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+								<span className="codicon codicon-target"></span>
+								<span style={{ fontWeight: 500 }}>Goal:</span> {currentState.mainGoal}
+							</div>
+							<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+								<span className="codicon codicon-debug-stackframe"></span>
+								<span style={{ fontWeight: 500 }}>Status:</span> {currentState.status}
+							</div>
+							{currentState.currentStep && (
+								<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+									<span className="codicon codicon-steps"></span>
+									<span style={{ fontWeight: 500 }}>Step:</span> {currentState.currentStep}
+								</div>
+							)}
+							{currentState.lastAction && (
+								<div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+									<span className="codicon codicon-history"></span>
+									<span style={{ fontWeight: 500 }}>Last Action:</span> {currentState.lastAction}
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 				<div style={{ 
 					display: "flex", 
