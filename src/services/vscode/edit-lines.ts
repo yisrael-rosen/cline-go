@@ -15,6 +15,15 @@ export interface LineMatch {
 }
 
 /**
+ * Validates that content contains only a single line
+ */
+function validateSingleLine(content: string | undefined): void {
+    if (content && (content.includes('\n') || content.includes('\r'))) {
+        throw new Error('Content must be a single line');
+    }
+}
+
+/**
  * Edit text content in memory
  * 
  * Why in-memory operations?
@@ -47,6 +56,9 @@ export function editText(
     content?: string,
     options: LineEditOptions = {}
 ): string {
+    // Validate single line content
+    validateSingleLine(content);
+
     // Handle empty text
     if (!text.trim()) {
         if (editType === 'delete') return '';
@@ -70,9 +82,7 @@ export function editText(
     if (content && options.preserveIndentation) {
         const currentLine = lines[index];
         const indent = currentLine.match(/^[\s\t]*/)?.[0] || '';
-        newContent = content.split(/\r?\n/).map(line => 
-            line.trim() ? indent + line.trim() : line
-        ).join(eol);
+        newContent = indent + content.trim();
     } else if (content && options.trimWhitespace) {
         newContent = content.trim();
     }
@@ -106,6 +116,7 @@ export function editText(
  * 
  * This is a wrapper around editText that handles file I/O.
  * The actual text manipulation is done in memory for reliability.
+ * Only single-line edits are supported.
  */
 export async function editLines(
     filePath: string,
@@ -114,6 +125,9 @@ export async function editLines(
     content?: string,
     options: LineEditOptions = {}
 ): Promise<string> {
+    // Validate single line content
+    validateSingleLine(content);
+
     const document = await vscode.workspace.openTextDocument(filePath);
     return editText(document.getText(), editType, lineNumber, content, options);
 }
