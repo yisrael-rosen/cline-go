@@ -52,7 +52,15 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		ClineProvider.activeInstances.add(this)
 		this.workspaceTracker = new WorkspaceTracker(this)
 	}
-
+	private async handleGetTaskState() {
+		if (this.cline) {
+			const currentState = this.cline.getCurrentState();
+			await this.postMessageToWebview({ 
+				type: "taskState", 
+				taskState: currentState 
+			});
+		}
+	}
 	async dispose() {
 		this.outputChannel.appendLine("Disposing ClineProvider...")
 		await this.clearTask()
@@ -215,6 +223,9 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "newTask":
 						await this.initClineWithTask(message.text, message.images)
 						break
+					case "getTaskState":
+						await this.handleGetTaskState();
+						break;
 					case "apiConfiguration":
 						if (message.apiConfiguration) {
 							const { apiProvider, apiModelId, apiKey, anthropicBaseUrl } = message.apiConfiguration;

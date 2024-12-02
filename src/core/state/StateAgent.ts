@@ -33,7 +33,10 @@ NEW INFORMATION:
 
 RULES:
 1. Maintain task focus and context
-2. Only change status when there's a clear reason
+2. Only change status when there's a clear reason:
+   - 'blocked' when encountering issues or waiting for input
+   - 'completed' when the main goal is achieved
+   - 'active' during normal progress
 3. Track current step based on activity
 4. Keep response in JSON format:
 {
@@ -46,6 +49,11 @@ RULES:
   "reason": string,
   "recommendation"?: string
 }
+
+Consider the context of VSCode events:
+- Document changes indicate active development
+- Editor changes show context switching
+- Task events reflect build/test activities
 
 Analyze the new information and provide updated state with explanation.`;
 

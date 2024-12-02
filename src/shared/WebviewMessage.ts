@@ -1,5 +1,5 @@
 import { ApiConfiguration, ApiProvider } from "./api"
-import { ToolUseName } from "./ExtensionMessage"
+import { ToolUseName, ClineAskResponse } from "./ExtensionMessage"
 
 export interface WebviewMessage {
     type:
@@ -21,7 +21,8 @@ export interface WebviewMessage {
         | "openImage"
         | "openFile"
         | "openMention"
-        | "cancelTask";
+        | "cancelTask"
+        | "getTaskState";
     text?: string;
     askResponse?: ClineAskResponse;
     apiConfiguration?: ApiConfiguration;
@@ -29,5 +30,3 @@ export interface WebviewMessage {
     bool?: boolean;
     tools?: ToolUseName[];
 }
-
-export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"

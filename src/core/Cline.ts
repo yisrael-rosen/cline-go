@@ -26,6 +26,8 @@ import { GoParser, EditRequest } from "../../go/parser/wrapper"
 import { getGoSymbols, GoSymbol, formatGoSymbols } from '../services/go/get-go-symbols';
 import { checkFileLength } from "../utils/file-length-check";
 import { editJson } from "../services/json/edit-json";
+import { StateAgentManager } from './state/StateAgentManager';
+import { MinimalTaskState } from './state/StateAgent';
 
 import {
 	BrowserAction,
@@ -41,7 +43,7 @@ import {
 } from "../shared/ExtensionMessage"
 import { getApiMetrics } from "../shared/getApiMetrics"
 import { HistoryItem } from "../shared/HistoryItem"
-import { ClineAskResponse } from "../shared/WebviewMessage"
+import { ClineAskResponse } from "../shared/ExtensionMessage"
 import { calculateApiCost } from "../utils/cost"
 import { fileExistsAtPath } from "../utils/fs"
 import { arePathsEqual, getReadablePath } from "../utils/path"
@@ -83,6 +85,7 @@ export class Cline {
 	didFinishAborting = false
 	abandoned = false
 	private diffViewProvider: DiffViewProvider
+	private stateManager: StateAgentManager;
 
 	// streaming
 	private currentStreamingContentIndex = 0
@@ -110,9 +113,11 @@ export class Cline {
 		this.urlContentFetcher = new UrlContentFetcher(provider.context)
 		this.browserSession = new BrowserSession(provider.context)
 		this.diffViewProvider = new DiffViewProvider(cwd)
+		// Add the StateAgentManager initialization here:
+		this.stateManager = new StateAgentManager(this.api)
 		this.customInstructions = customInstructions
 		this.alwaysAllowReadOnly = alwaysAllowReadOnly ?? false
-
+	 
 		if (historyItem) {
 			this.taskId = historyItem.id
 			this.resumeTaskFromHistory()
@@ -125,6 +130,23 @@ export class Cline {
 	}
 
 	// Storing task to disk for history
+	public activate() {
+		// Start the state manager to begin listening for events
+		this.stateManager.start();
+	}
+	
+	public deactivate() {
+		// Clean up state manager when extension is deactivated
+		this.stateManager.stop();
+	}
+	
+	public async setMainGoal(goal: string) {
+		return this.stateManager.setMainGoal(goal);
+	}
+	
+	public getCurrentState(): MinimalTaskState {
+		return this.stateManager.getCurrentState();
+	}
 
 	private async ensureTaskDirectoryExists(): Promise<string> {
 		const globalStoragePath = this.providerRef.deref()?.context.globalStorageUri.fsPath

@@ -1,4 +1,5 @@
 import { EditType, InsertPosition } from "../services/vscode/edit-code-symbols"
+import { MinimalTaskState } from "../core/state/StateAgent"
 
 export type BrowserAction = "launch" | "click" | "type" | "scroll_down" | "scroll_up" | "close"
 
@@ -10,6 +11,8 @@ export interface BrowserActionResult {
 }
 
 export const browserActions = ["launch", "click", "type", "scroll_down", "scroll_up", "close"] as const
+
+export type ClineAskResponse = "yesButtonClicked" | "noButtonClicked" | "messageResponse"
 
 export type ClineAsk =
     | "command"
@@ -150,6 +153,7 @@ export type ExtensionMessageType =
     | "alwaysAllowReadOnly"
     | "enabledTools"
     | "resetState"
+    | "taskState"
 
 export interface ExtensionMessage {
     type: ExtensionMessageType
@@ -160,8 +164,9 @@ export interface ExtensionMessage {
     partialMessage?: ClineMessage
     invoke?: "sendMessage" | "primaryButtonClick" | "secondaryButtonClick"
     filePaths?: string[]
-    askResponse?: "messageResponse" | "yesButtonClicked" | "noButtonClicked"
+    askResponse?: ClineAskResponse
     apiConfiguration?: any
     tools?: string[]
     bool?: boolean
+    taskState?: MinimalTaskState
 }
