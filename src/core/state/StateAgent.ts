@@ -2,7 +2,6 @@ import { ApiHandler, buildApiHandler } from '../../api';
 import { ApiStreamChunk } from '../../api/transform/stream';
 import { Anthropic } from '@anthropic-ai/sdk';
 import { ApiConfiguration } from '../../shared/api';
-import { Agent } from 'openai/_shims/node-types.mjs';
 
 export type MessageType = 'TASK_START' | 'USER_MESSAGE' | 'ASSISTANT_MESSAGE' | 'EVENT';
 
