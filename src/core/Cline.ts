@@ -2739,23 +2739,19 @@ export class Cline {
 			this.getEnvironmentDetails(includeFileDetails),
 		])
 	}
-
-	async getEnvironmentDetails(includeFileDetails: boolean = false) {
-		let details = ""
-
-		// It could be useful for cline to know if the user went from one or no file to another between messages, so we always include this context
+	private getVisibleFilesAndTabs(): string {
+		let details = "";
+		
+		// Visible files section
 		details += "\n\n# VSCode Visible Files"
 		const visibleFiles = vscode.window.visibleTextEditors
 			?.map((editor) => editor.document?.uri?.fsPath)
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
 			.join("\n")
-		if (visibleFiles) {
-			details += `\n${visibleFiles}`
-		} else {
-			details += "\n(No visible files)"
-		}
-
+		details += visibleFiles ? `\n${visibleFiles}` : "\n(No visible files)"
+	
+		// Open tabs section  
 		details += "\n\n# VSCode Open Tabs"
 		const openTabs = vscode.window.tabGroups.all
 			.flatMap((group) => group.tabs)
@@ -2763,111 +2759,72 @@ export class Cline {
 			.filter(Boolean)
 			.map((absolutePath) => path.relative(cwd, absolutePath).toPosix())
 			.join("\n")
-		if (openTabs) {
-			details += `\n${openTabs}`
-		} else {
-			details += "\n(No open tabs)"
-		}
-
-		const busyTerminals = this.terminalManager.getTerminals(true)
-		const inactiveTerminals = this.terminalManager.getTerminals(false)
-		// const allTerminals = [...busyTerminals, ...inactiveTerminals]
-
-		if (busyTerminals.length > 0 && this.didEditFile) {
-			//  || this.didEditFile
-			await delay(300) // delay after saving file to let terminals catch up
-		}
-
-		// let terminalWasBusy = false
+		details += openTabs ? `\n${openTabs}` : "\n(No open tabs)"
+	
+		return details;
+	}
+	private async getTerminalDetails(): Promise<string> {
+		const busyTerminals = this.terminalManager.getTerminals(true);
+		const inactiveTerminals = this.terminalManager.getTerminals(false);
+		let details = "";
+	
+		// Handle busy terminals first
 		if (busyTerminals.length > 0) {
-			// wait for terminals to cool down
-			// terminalWasBusy = allTerminals.some((t) => this.terminalManager.isProcessHot(t.id))
-			await pWaitFor(() => busyTerminals.every((t) => !this.terminalManager.isProcessHot(t.id)), {
-				interval: 100,
-				timeout: 15_000,
-			}).catch(() => { })
-		}
-
-		// we want to get diagnostics AFTER terminal cools down for a few reasons: terminal could be scaffolding a project, dev servers (compilers like webpack) will first re-compile and then send diagnostics, etc
-		/*
-		let diagnosticsDetails = ""
-		const diagnostics = await this.diagnosticsMonitor.getCurrentDiagnostics(this.didEditFile || terminalWasBusy) // if cline ran a command (ie npm install) or edited the workspace then wait a bit for updated diagnostics
-		for (const [uri, fileDiagnostics] of diagnostics) {
-			const problems = fileDiagnostics.filter((d) => d.severity === vscode.DiagnosticSeverity.Error)
-			if (problems.length > 0) {
-				diagnosticsDetails += `\n## ${path.relative(cwd, uri.fsPath)}`
-				for (const diagnostic of problems) {
-					// let severity = diagnostic.severity === vscode.DiagnosticSeverity.Error ? "Error" : "Warning"
-					const line = diagnostic.range.start.line + 1 // VSCode lines are 0-indexed
-					const source = diagnostic.source ? `[${diagnostic.source}] ` : ""
-					diagnosticsDetails += `\n- ${source}Line ${line}: ${diagnostic.message}`
+			if (this.didEditFile) {
+				await delay(300);
+				await pWaitFor(
+					() => busyTerminals.every(t => !this.terminalManager.isProcessHot(t.id)),
+					{ interval: 100, timeout: 15_000 }
+				).catch(() => {});
+			}
+	
+			details += "\n\n# Actively Running Terminals";
+			for (const terminal of busyTerminals) {
+				const output = this.terminalManager.getUnretrievedOutput(terminal.id);
+				if (output) {
+					details += `\n## Original command: \`${terminal.lastCommand}\`\n### New Output\n${output}`;
 				}
 			}
 		}
-		*/
-		this.didEditFile = false // reset, this lets us know when to wait for saved files to update terminals
-
-		// waiting for updated diagnostics lets terminal output be the most up-to-date possible
-		let terminalDetails = ""
-		if (busyTerminals.length > 0) {
-			// terminals are cool, let's retrieve their output
-			terminalDetails += "\n\n# Actively Running Terminals"
-			for (const busyTerminal of busyTerminals) {
-				terminalDetails += `\n## Original command: \`${busyTerminal.lastCommand}\``
-				const newOutput = this.terminalManager.getUnretrievedOutput(busyTerminal.id)
-				if (newOutput) {
-					terminalDetails += `\n### New Output\n${newOutput}`
-				} else {
-					// details += `\n(Still running, no new output)` // don't want to show this right after running the command
-				}
+	
+		// Handle inactive terminals
+		const inactiveWithOutput = inactiveTerminals
+			.filter(t => this.terminalManager.getUnretrievedOutput(t.id));
+		
+		if (inactiveWithOutput.length > 0) {
+			details += "\n\n# Inactive Terminals";
+			for (const terminal of inactiveWithOutput) {
+				const output = this.terminalManager.getUnretrievedOutput(terminal.id);
+				details += `\n## ${terminal.lastCommand}\n### New Output\n${output}`;
 			}
 		}
-		// only show inactive terminals if there's output to show
-		if (inactiveTerminals.length > 0) {
-			const inactiveTerminalOutputs = new Map<number, string>()
-			for (const inactiveTerminal of inactiveTerminals) {
-				const newOutput = this.terminalManager.getUnretrievedOutput(inactiveTerminal.id)
-				if (newOutput) {
-					inactiveTerminalOutputs.set(inactiveTerminal.id, newOutput)
-				}
-			}
-			if (inactiveTerminalOutputs.size > 0) {
-				terminalDetails += "\n\n# Inactive Terminals"
-				for (const [terminalId, newOutput] of inactiveTerminalOutputs) {
-					const inactiveTerminal = inactiveTerminals.find((t) => t.id === terminalId)
-					if (inactiveTerminal) {
-						terminalDetails += `\n## ${inactiveTerminal.lastCommand}`
-						terminalDetails += `\n### New Output\n${newOutput}`
-					}
-				}
-			}
-		}
-
-		// details += "\n\n# VSCode Workspace Errors"
-		// if (diagnosticsDetails) {
-		// 	details += diagnosticsDetails
-		// } else {
-		// 	details += "\n(No errors detected)"
-		// }
-
+	
+		return details;
+	}
+	async getEnvironmentDetails(includeFileDetails: boolean = false): Promise<string> {
+		let details = this.getVisibleFilesAndTabs();
+		
+		// Get terminal details and reset edit flag
+		const terminalDetails = await this.getTerminalDetails();
+		this.didEditFile = false;
+		
 		if (terminalDetails) {
-			details += terminalDetails
+			details += terminalDetails;
 		}
-
+	
+		// Add file details if requested
 		if (includeFileDetails) {
-			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`
-			const isDesktop = arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))
-			if (isDesktop) {
-				// don't want to immediately access desktop since it would show permission popup
-				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)"
+			details += `\n\n# Current Working Directory (${cwd.toPosix()}) Files\n`;
+			
+			if (arePathsEqual(cwd, path.join(os.homedir(), "Desktop"))) {
+				details += "(Desktop files not shown automatically. Use list_files to explore if needed.)";
 			} else {
-				const [files, didHitLimit] = await listFiles(cwd, true, 200)
-				const result = formatResponse.formatFilesList(cwd, files, didHitLimit)
-				details += result
+				const [files, didHitLimit] = await listFiles(cwd, true, 200);
+				details += formatResponse.formatFilesList(cwd, files, didHitLimit);
 			}
 		}
-
-		return `<environment_details>\n${details.trim()}\n</environment_details>`
+	
+		return `<environment_details>\n${details.trim()}\n</environment_details>`;
 	}
 }
 
