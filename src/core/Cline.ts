@@ -452,7 +452,11 @@ export class Cline {
 
 		await this.say("text", task, images)
 		if (task) {
-			await this.stateManager.handleNewTask(task);
+			// Run task handling asynchronously without blocking
+			this.stateManager.handleNewTask(task).catch(error => {
+			  console.error('Error handling task:', error);
+			  // Optionally handle the error in a way that makes sense for your application
+			});
 		  }
 		let imageBlocks: Anthropic.ImageBlockParam[] = formatResponse.imageBlocks(images)
 		await this.initiateTaskLoop([
