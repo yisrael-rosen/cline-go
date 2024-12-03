@@ -1,7 +1,5 @@
-import { ApiHandler, buildApiHandler } from '../../api';
-import { ApiStreamChunk } from '../../api/transform/stream';
+import { ApiHandler } from '../../api';
 import { Anthropic } from '@anthropic-ai/sdk';
-import { ApiConfiguration } from '../../shared/api';
 
 export type MessageType = 'TASK_START' | 'USER_MESSAGE' | 'ASSISTANT_MESSAGE' | 'EVENT';
 
@@ -167,11 +165,10 @@ export class StateAgent {
   }
 
   async updateState(input: StateUpdateInput): Promise<StateUpdateResult> {
-    // Prepare the prompt with current state and new information
     const systemPrompt = this.formatUpdateInput(input);
 
     try {
-      // Format messages for API
+      // Create messages array in Anthropic format
       const messages: Anthropic.Messages.MessageParam[] = [
         { role: 'user', content: systemPrompt }
       ];

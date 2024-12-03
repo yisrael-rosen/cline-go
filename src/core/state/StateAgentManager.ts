@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { StateAgent, MinimalTaskState } from './StateAgent';
-import { ApiHandler } from '../../api';
+import { ApiHandler, buildApiHandler } from '../../api';
+import { ApiConfiguration } from '../../shared/api';
 
 export class StateAgentManager {
   private stateAgent: StateAgent;
@@ -8,7 +9,18 @@ export class StateAgentManager {
   private disposables: vscode.Disposable[] = [];
 
   constructor(api: ApiHandler) {
-    this.stateAgent = new StateAgent(api);
+    // Create a new API handler specifically for StateAgent with haiku model
+    const stateAgentConfig: ApiConfiguration = {
+      apiProvider: "anthropic",
+      apiModelId: "claude-3-5-haiku-20241022",
+      apiKey: (api as any).options?.apiKey,
+      anthropicBaseUrl: (api as any).options?.anthropicBaseUrl
+    };
+    
+    // Build a new API handler with haiku model
+    const stateAgentApi = buildApiHandler(stateAgentConfig);
+    this.stateAgent = new StateAgent(stateAgentApi);
+    
     this.currentState = {
       mainGoal: '',
       status: 'active'

@@ -10,6 +10,17 @@ export type ApiConfiguration = ApiHandlerOptions & {
 	apiProvider?: ApiProvider
 }
 
+// Generic Message Types
+export interface Message {
+    role: 'system' | 'user' | 'assistant'
+    content: string
+}
+
+export interface MessageResponse {
+    content: string
+    format?: 'xml' | 'json' | 'text'
+}
+
 // Models
 
 export interface ModelInfo {
