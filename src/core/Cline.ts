@@ -1674,14 +1674,14 @@ export class Cline {
 						}
 					
 						// Check file length before proceeding with diff view
-						const availableTools = (await this.providerRef.deref()?.getState())?.enabledTools || [];
-						const lengthCheck = checkFileLength(relPath, originalContent, availableTools);
-						if (lengthCheck.isOverThreshold) {
-							pushToolResult(
-								`Cannot write to file '${relPath}' - ${lengthCheck.message}`
-							);
-							break;
-						}
+						//const availableTools = (await this.providerRef.deref()?.getState())?.enabledTools || [];
+						//const lengthCheck = checkFileLength(relPath, originalContent, availableTools);
+						//if (lengthCheck.isOverThreshold) {
+						//	pushToolResult(
+						//		`Cannot write to file '${relPath}' - ${lengthCheck.message}`
+						//	);
+						//	break;
+						//}
 					
 						// Continue with normal diff view process
 						this.diffViewProvider.editType = fileExists ? "modify" : "create"
