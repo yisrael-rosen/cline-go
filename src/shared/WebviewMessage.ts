@@ -22,6 +22,7 @@ export interface WebviewMessage {
         | "openFile"
         | "openMention"
         | "cancelTask"
+        | "copySystemPrompt"
         | "getTaskState";
     text?: string;
     askResponse?: ClineAskResponse;

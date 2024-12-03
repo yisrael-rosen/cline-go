@@ -290,6 +290,17 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 					case "resetState":
 						await this.resetState()
 						break
+					case "copySystemPrompt":
+						if (this.cline) {
+							await this.cline.copySystemPromptToClipboard()
+						} else {
+							// Create temporary Cline instance just to get system prompt
+							const { apiConfiguration, customInstructions, alwaysAllowReadOnly } = await this.getState()
+							const tempCline = new Cline(this, apiConfiguration, customInstructions, alwaysAllowReadOnly, "", [])
+							await tempCline.copySystemPromptToClipboard()
+							tempCline.abortTask() // Clean up the temporary instance
+						}
+						break
 					case "openImage":
 						openImage(message.text!)
 						break

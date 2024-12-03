@@ -9,6 +9,7 @@ type TabNavbarProps = {
 	onPlusClick: () => void
 	onHistoryClick: () => void
 	onSettingsClick: () => void
+	onCopySystemPrompt: () => void
 }
 
 type TooltipProps = {
@@ -87,7 +88,7 @@ const Tooltip: React.FC<TooltipProps> = ({ text, isVisible, position, align = "c
 	)
 }
 
-const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarProps) => {
+const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick, onCopySystemPrompt }: TabNavbarProps) => {
 	const [tooltip, setTooltip] = useState<TooltipProps>({
 		text: "",
 		isVisible: false,
@@ -122,15 +123,19 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarPr
 		<>
 			<div
 				style={{
-					position: "absolute",
-					top: 4,
-					right: 0,
-					left: 0,
-					height: TAB_NAVBAR_HEIGHT,
 					display: "flex",
-					justifyContent: "flex-end",
 					alignItems: "center",
+					gap: "8px",
 				}}>
+				<VSCodeButton
+					appearance="icon"
+					onClick={onCopySystemPrompt}
+					style={buttonStyle}
+					onMouseEnter={(e) => showTooltip("Copy System Prompt", e, "center")}
+					onMouseLeave={hideTooltip}
+					onMouseMove={(e) => showTooltip("Copy System Prompt", e, "center")}>
+					<span className="codicon codicon-copy"></span>
+				</VSCodeButton>
 				<VSCodeButton
 					appearance="icon"
 					onClick={onPlusClick}
@@ -165,3 +170,6 @@ const TabNavbar = ({ onPlusClick, onHistoryClick, onSettingsClick }: TabNavbarPr
 }
 
 export default TabNavbar
+
+
+

@@ -51,6 +51,10 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 		vscode.postMessage({ type: "resetState" })
 	}
 
+	const handleCopySystemPrompt = () => {
+		vscode.postMessage({ type: "copySystemPrompt" })
+	}
+
 	return (
 		<div
 			style={{
@@ -103,6 +107,24 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 							color: "var(--vscode-descriptionForeground)",
 						}}>
 						These instructions are added to the end of the system prompt sent with every request.
+					</p>
+				</div>
+
+				<div style={{ marginBottom: 5 }}>
+					<VSCodeButton
+						appearance="icon"
+						onClick={handleCopySystemPrompt}
+						style={{ marginBottom: "5px" }}>
+						<span className="codicon codicon-copy"></span>
+						<span style={{ marginLeft: "5px" }}>Copy System Prompt</span>
+					</VSCodeButton>
+					<p
+						style={{
+							fontSize: "12px",
+							marginTop: "5px",
+							color: "var(--vscode-descriptionForeground)",
+						}}>
+						Copy the full system prompt that defines Cline's behavior, including your custom instructions.
 					</p>
 				</div>
 

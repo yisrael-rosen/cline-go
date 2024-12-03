@@ -162,6 +162,11 @@
         "category": "Cline"
       },
       {
+				"command": "cline.settingsButtonClicked",
+				"title": "Settings",
+				"icon": "$(settings-gear)"
+			},
+      {
         "command": "cline.setApiKey",
         "title": "Cline: Set API Key",
         "category": "Cline"
@@ -183,7 +188,12 @@
           "command": "cline.popoutButtonClicked",
           "group": "navigation@3",
           "when": "view == claude-dev.SidebarProvider"
-        }
+        },
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@4",
+					"when": "view == claude-dev.SidebarProvider"
+				}
       ]
     }
   },
@@ -259,3 +269,5 @@
     "web-tree-sitter": "^0.22.6"
   }
 }
+
+

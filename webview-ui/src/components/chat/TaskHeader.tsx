@@ -74,6 +74,13 @@ const TaskHeader = ({
 						style={{ padding: 5 }}>
 						<span className="codicon codicon-export"></span>
 					</VSCodeButton>
+					<VSCodeButton
+						appearance="icon"
+						onClick={() => vscode.postMessage({ type: "copySystemPrompt" })}
+						style={{ padding: 5 }}
+						title="Copy System Prompt">
+						<span className="codicon codicon-copy"></span>
+					</VSCodeButton>
 					{currentState && (
 						<div style={{ 
 							display: "flex", 
@@ -172,3 +179,4 @@ const TaskHeader = ({
 }
 
 export default memo(TaskHeader)
+

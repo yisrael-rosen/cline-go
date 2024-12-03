@@ -340,6 +340,29 @@ export class Cline {
 		this.askResponseImages = undefined
 		return result
 	}
+	async getSystemPrompt(): Promise<string> {
+		//return await SYSTEM_PROMPT(this.providerRef, {
+		//	cwd,
+		//	supportsComputerUse: this.api.getModel().info.supportsComputerUse ?? false,
+		//	customInstructions: this.customInstructions?.trim(),
+		//})
+		return await SYSTEM_PROMPT(
+			cwd,
+			this.api.getModel().info.supportsComputerUse ?? false,
+			undefined,
+			this.customInstructions
+		)
+	}
+
+	async copySystemPromptToClipboard() {
+		try {
+			const systemPrompt = await this.getSystemPrompt()
+			await vscode.env.clipboard.writeText(systemPrompt)
+			vscode.window.showInformationMessage('System prompt copied to clipboard')
+		} catch (error) {
+			vscode.window.showErrorMessage('Failed to copy system prompt: ' + error.message)
+		}
+	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[]) {
 		this.askResponse = askResponse
@@ -782,12 +805,8 @@ export class Cline {
 	}
 
 	async *attemptApiRequest(previousApiReqIndex: number): ApiStream {
-    let systemPrompt = await SYSTEM_PROMPT(
-        cwd,
-        this.api.getModel().info.supportsComputerUse ?? false,
-        undefined,
-        this.customInstructions
-    )
+   
+	let systemPrompt = await this.getSystemPrompt()
 
     // If the previous API request's total token usage is close to the context window, truncate the conversation history to free up space for the new request
     if (previousApiReqIndex >= 0) {
