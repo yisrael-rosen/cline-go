@@ -1,16 +1,17 @@
 // WARNING: This file should not be edited by LLMs directly due to complex template literal escaping.
 // Manual editing is required to maintain proper string formatting and prevent syntax errors.
 
+import path from 'path';
+import fs from 'fs';
 import osName from "os-name";
 import defaultShell from "default-shell";
 import os from "os";
-import { BASE_PROMPT, TOOL_USE_FORMATTING } from "./sections/base";
+import { TOOL_USE_FORMATTING } from "./sections/base";
 import { CAPABILITIES } from "./sections/capabilities";
-import { RULES } from "./sections/rules";
 import { getAllTools } from "./sections/tools";
-import { OBJECTIVE } from "./sections/objective";
 import { ToolUseName } from "../../shared/ExtensionMessage";
 import { ProjectConfig, EnabledTools } from "../../shared/types/project-config";
+import { getVSCodeUserDir } from '../../utils/path';
 
 // These tools are always available regardless of user settings
 const ALWAYS_ENABLED_TOOLS: ToolUseName[] = [
@@ -37,6 +38,111 @@ const OPTIONAL_TOOLS: ToolUseName[] = [
 
 export interface SystemConfig extends ProjectConfig {
   shellOverride?: string;
+}
+
+// Template interpolation function
+function interpolateTemplate(template: string, context: any): string {
+  return template.replace(/\$\{([^}]+)\}/g, (match, expr) => {
+    try {
+      // First check if the value exists directly in context
+      if (expr in context) {
+        return String(context[expr]);
+      }
+      // If not, try evaluating as an expression
+      const result = evaluateExpression(expr.trim(), context)
+      return String(result)
+    } catch (error) {
+      console.warn(`Failed to evaluate: ${expr}`)
+      return match
+    }
+  })
+}
+
+// Safe expression evaluation
+function evaluateExpression(expr: string, context: any): any {
+  const safeContext = {
+    ...context,
+    String,
+    Number,
+    Boolean,
+    Array,
+    Object,
+    Math,
+    Date,
+    JSON
+  }
+  
+  const fn = new Function(...Object.keys(safeContext), `return ${expr}`)
+  return fn(...Object.values(safeContext))
+}
+
+// Get files from directory
+async function getFilesFromDir(dir: string): Promise<string[]> {
+  if (!fs.existsSync(dir)) {
+    return [];
+  }
+
+  try {
+    const files = await fs.promises.readdir(dir);
+    return files.filter(file => {
+      const filePath = path.join(dir, file);
+      return fs.statSync(filePath).isFile();
+    });
+  } catch (error) {
+    console.warn(`Failed to read directory: ${dir}`);
+    return [];
+  }
+}
+
+// Load and process instruction files
+async function loadInstructionFiles(cwd: string, context: any): Promise<string[]> {
+  // Define instruction directories in priority order
+  const projectInstructionsDir = path.join(cwd, ".cline", "system-instructions.d")
+  const globalInstructionsDir = path.join(getVSCodeUserDir(), "cline", "system-instructions.d") 
+  const packageInstructionsDir = path.join("assets", "system-instructions.d")
+
+  // Get list of files from all directories
+  const projectFiles = await getFilesFromDir(projectInstructionsDir);
+  const globalFiles = await getFilesFromDir(globalInstructionsDir);
+  const packageFiles = await getFilesFromDir(packageInstructionsDir);
+
+  // Combine unique filenames, maintaining priority order
+  const allFiles = [...new Set([...projectFiles, ...globalFiles, ...packageFiles])].sort()
+
+  // Process each file
+  const sections = await Promise.all(allFiles.map(async (file) => {
+    let content: string
+    let sourcePath = ""
+
+    // Try loading from each location in priority order
+    try {
+      const projectPath = path.join(projectInstructionsDir, file)
+      const globalPath = path.join(globalInstructionsDir, file)
+      const packagePath = path.join(packageInstructionsDir, file)
+
+      if (fs.existsSync(projectPath)) {
+        content = await fs.promises.readFile(projectPath, "utf8")
+        sourcePath = projectPath
+      } else if (fs.existsSync(globalPath)) {
+        content = await fs.promises.readFile(globalPath, "utf8")
+        sourcePath = globalPath
+      } else if (fs.existsSync(packagePath)) {
+        content = await fs.promises.readFile(packagePath, "utf8")
+        sourcePath = packagePath
+      } else {
+        console.warn(`Failed to find instruction file: ${file}`)
+        return ""
+      }
+    } catch (error) {
+      console.warn(`Failed to read instruction file: ${sourcePath}`)
+      return ""
+    }
+
+    // Process content with interpolateTemplate
+    return interpolateTemplate(content, context)
+  }))
+
+  return sections.filter(Boolean)
 }
 
 export function addCustomInstructions(instructions: string): string {
@@ -67,50 +173,26 @@ export const SYSTEM_PROMPT = async (
   const toolsSection = supportsComputerUse 
     ? getAllTools(cwd, true, enabledTools)
     : "";
+
+  // Create context for template interpolation
+  const context = {
+    cwd,
+    operatingSystem: osName(),
+    shell: projectConfig?.shellOverride || defaultShell,
+    homeDir: os.homedir().toPosix(),
+    TOOL_USE_FORMATTING,
+    CAPABILITIES: CAPABILITIES(cwd, supportsComputerUse, projectConfig)
+  };
+
+  // Load template sections
+  const templateSections = await loadInstructionFiles(cwd, context);
     
   const sections = [
-    // 1. Core Identity and Purpose
-    BASE_PROMPT,
-    "====",
-    "OBJECTIVE",
-    OBJECTIVE,
-    "====",
-    
-    // 2. Critical Rules and Constraints
-    "CRITICAL RULES AND CONSTRAINTS",
-    `# HIGHEST PRIORITY - MUST NEVER BE VIOLATED
-- When using the write_to_file tool, ALWAYS provide the COMPLETE file content. This is NON-NEGOTIABLE.
-- ALWAYS wait for user confirmation after each tool use before proceeding.
-- NEVER engage in conversational responses or end messages with questions.
-- NEVER start messages with "Great", "Certainly", "Okay", "Sure".
-
-# OPERATIONAL CONSTRAINTS
-- Current working directory is: ${cwd}
-- Cannot cd into different directories
-- Do not use ~ or $HOME for home directory
-
-# MEMORY REFRESH TRIGGERS
-Before each action, verify:
-1. All critical rules are being followed
-2. Required validations are complete
-3. Development standards are maintained
-4. Tool usage guidelines are respected`,
+    // Load template sections
+    ...templateSections,
     "====",
 
-    // 3. Operating Environment
-    "SYSTEM INFORMATION",
-    `Operating System: ${osName()}
-Default Shell: ${projectConfig?.shellOverride || defaultShell}
-Home Directory: ${os.homedir().toPosix()}
-Current Working Directory: ${cwd.toPosix()}`,
-    "====",
-
-    // 4. Development Standards
-    "DEVELOPMENT STANDARDS",
-    RULES(cwd),
-    "====",
-
-    // 5. Tool Framework
+    // Tool Framework (kept in code)
     "TOOL FRAMEWORK",
     "# Core Principles",
     TOOL_USE_FORMATTING,
@@ -120,6 +202,6 @@ Current Working Directory: ${cwd.toPosix()}`,
     ...(toolsSection ? [toolsSection] : [])
   ];
 
-  const basePrompt = sections.filter(Boolean).join("\n\n");
-  return customInstructions ? basePrompt + addCustomInstructions(customInstructions) : basePrompt;
+  const finalPrompt = sections.filter(Boolean).join("\n\n");
+  return customInstructions ? finalPrompt + addCustomInstructions(customInstructions) : finalPrompt;
 };

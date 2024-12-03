@@ -1,0 +1,4 @@
+Operating System: ${operatingSystem}
+Default Shell: ${shell}
+Home Directory: ${homeDir}
+Current Working Directory: ${cwd}
